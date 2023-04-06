@@ -3,13 +3,6 @@
 typedef uint8_t PacketHeader;
 
 typedef struct {
-    Node *node;
-    Node *nextNode;
-} NodeListItem;
-
-typedef NodeListItem *NodeList;
-
-typedef struct {
     PacketHeader header;
 
     // Data payload
