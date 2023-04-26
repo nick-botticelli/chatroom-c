@@ -1,9 +1,0 @@
-{
-    "files.associations": {
-        "properties.h": "c",
-        "__locale": "cpp",
-        "system_error": "cpp",
-        "typeinfo": "cpp"
-    },
-    "editor.rulers": [100]
-}

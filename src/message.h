@@ -1,3 +1,7 @@
+#pragma once
+
+#include <stdint.h>
+
 #include <chat_node.h>
 
 typedef uint8_t PacketHeader;
@@ -36,3 +40,12 @@ typedef struct {
         };
     };
 } Message;
+
+
+
+Message *createJoinMessage(char *name);
+Message *createAddMemberMessage(Node *nodeInfo);
+Message *createMemberListMessage(NodeListItem *memberList);
+Message *createNoteMessage(char *message);
+Message *createLeaveMessage();
+Message *createShutdownAllMessage();

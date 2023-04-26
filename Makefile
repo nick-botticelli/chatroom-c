@@ -10,7 +10,6 @@ INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 CPPFLAGS := $(INC_FLAGS) -MMD -MP -Wall -Wno-unused-command-line-argument
 LDFLAGS  := -pthread -lpthread
 
-#
 RELEASE_FLAGS := -Ofast -DNDEBUG -fvisibility=hidden -fstack-protector-strong \
 -fomit-frame-pointer -fPIE -fstack-clash-protection -fsanitize=bounds \
 -fsanitize-undefined-trap-on-error -D_FORTIFY_SOURCE=3 -flto
