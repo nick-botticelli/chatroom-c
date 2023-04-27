@@ -16,6 +16,32 @@
 // TODO: Remove
 #define SERVER_ADDR "127.0.0.1"
 
+void debugMessage(Message message) {
+    MessageType msgType = getMessageType(message.header);
+
+    debug("Message {\n");
+    debug("\theader:\n");
+    debug("\t\ttype = %d\n", msgType);
+
+    switch (msgType) {
+        case MSG_JOIN:
+            debug("\tname = %s\n", message.name);
+            break;
+        case MSG_ADD_MEMBER:
+            break;
+        case MSG_MEMBER_LIST:
+            break;
+        case MSG_NOTE:
+            break;
+        case MSG_LEAVE:
+            break;
+        case MSG_SHUTDOWN_ALL:
+            break;
+    }
+
+    debug("}\n");
+}
+
 void *send_handler(void *unused) {
     int sock;
 
@@ -44,11 +70,15 @@ void *send_handler(void *unused) {
         // Read command input and craft outbound message
         scanf(" %127[^\n]", cmdBuf);
         // debug("Input: %s\n", cmdBuf);
-        Message *outboundMsg = handleCommand(cmdBuf);
+        CommandResult *cmdResult = handleCommand(cmdBuf);
 
-        // Send message
-        // TODO: Loop through all members of chat room to send to
-        // sendMessage(sock, outboundMsg);
+        if (cmdResult != NULL) {
+            // debugMessage(cmdResult->message);
+
+            // Send message
+            // TODO: Loop through all members of chat room to send to
+            sendMessage(sock, cmdResult->message);
+        }
     }
 
     // sock = socket(AF_INET, SOCK_STREAM, 0);
