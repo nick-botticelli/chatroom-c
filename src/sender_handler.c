@@ -21,18 +21,27 @@ Message *handleCommand(char *input) {
 
     if (strcasecmp(firstToken, "/JOIN") == 0) {
         // Handle joining
+        debug("Join!\n");
     }
     else if (strcasecmp(firstToken, "/LEAVE") == 0) {
         // Handle leaving
+        debug("Leave!\n");
     }
     else if (strcasecmp(firstToken, "/SHUTDOWN") == 0) {
         char *secondToken = strtok(NULL, CMD_DELIMITER);
 
-        if (strcasecmp(firstToken, "ALL") == 0) {
+        printf("secondToken: %s\n", secondToken);
+
+        if (secondToken == NULL) {
+            // Handle shutdown
+            debug("Shutdown!\n");
+        }
+        else if (strcasecmp(secondToken, "ALL") == 0) {
             // Handle shutdown all
+            debug("Shutdown all!\n");
         }
         else {
-            // Handle shutdown
+            fprintf(stderr, "Unknown shutdown option \"%s\"!\n", secondToken);
         }
     }
     else if (strcasecmp(firstToken, "/HELP") == 0) {
@@ -43,6 +52,9 @@ Message *handleCommand(char *input) {
              "\t/shutdown all - Shut down all clients\n"
              "\n"
              "\t<chat message> - The message you want to send to the chat room");
+    }
+    else if (firstToken[0] == '/') {
+        fprintf(stderr, "Unknown command!\n");
     }
     else {
         // Handle chat message

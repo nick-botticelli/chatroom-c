@@ -9,14 +9,14 @@
 #include <unistd.h>
 
 #include "chat_node.h"
+#include "debug.h"
 #include "receiver_handler.h"
 #include "sender_handler.h"
 
 // TODO: Remove
 #define SERVER_ADDR "127.0.0.1"
 
-void *send_handler(void *unused)
-{
+void *send_handler(void *unused) {
     int sock;
 
     int32_t inputRaw, input;
@@ -42,7 +42,8 @@ void *send_handler(void *unused)
         printf("> ");
 
         // Read command input and craft outbound message
-        scanf("%s", cmdBuf);
+        scanf(" %127[^\n]", cmdBuf);
+        // debug("Input: %s\n", cmdBuf);
         Message *outboundMsg = handleCommand(cmdBuf);
 
         // Send message
@@ -75,8 +76,7 @@ void *send_handler(void *unused)
     return NULL;
 }
 
-void *receive_handler(void *unused)
-{
+void *receive_handler(void *unused) {
     int sock;
 
     int32_t inputRaw, input;
