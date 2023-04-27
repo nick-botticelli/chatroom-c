@@ -18,6 +18,16 @@
 // Property, containing a key/value pair
 // --------------------------------------------
 
+
+
+typedef struct 
+{
+        char  *ip;
+        int   port;
+        char  *username;
+
+}chatnode_properties;
+
 typedef struct property_struct
 {
     char* key;

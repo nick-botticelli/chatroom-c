@@ -12,11 +12,35 @@
 #include "debug.h"
 #include "receiver_handler.h"
 #include "sender_handler.h"
+#include "properties.h"
 
 // TODO: Remove
 #define SERVER_ADDR "127.0.0.1"
 
-void *send_handler(void *unused) {
+
+chatnode_properties load_properties() {
+
+    char* properties_file = "chatnode.properties";
+    Properties* properties;
+    // char* value;
+
+    chatnode_properties chatnode_props;
+
+    chatnode_props.ip = property_get_property(properties, "ip");
+
+    chatnode_props.port = property_get_property(properties, "port");
+
+    chatnode_props.username = property_get_property(properties, "username");
+
+    return chatnode_props;
+    
+    // printf("\nValue for %s: %s\n", key, value);
+} 
+
+
+
+void *send_handler(void *chatnode_props_raw) {
+    chatnode_properties chatnode_props = *(chatnode_properties*) chatnode_props_raw;
     int sock;
 
     int32_t inputRaw, input;
@@ -124,8 +148,11 @@ int main(int argc, char *argv[]) {
 
     pthread_t senderThread, receiverThread;
 
+
+    chatnode_properties chatnode_props = load_properties();
+
     // Create sender thread
-    if (pthread_create(&senderThread, NULL, send_handler, (void *) NULL) < 0) {
+    if (pthread_create(&senderThread, NULL, send_handler, (void *) &chatnode_props) < 0) {
         perror("Error: Could not create sender thread");
         return EXIT_FAILURE;
     }
