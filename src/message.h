@@ -5,6 +5,8 @@
 
 #include <chat_node.h>
 
+#define BLANK_HEADER (MessageHeader) 0
+
 /**
  * Bits:
  * 0: Packet type

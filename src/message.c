@@ -20,6 +20,7 @@ inline void setMessageType(MessageHeader *messageHeader, MessageType messageType
 
 inline Message createJoinMessage(char *name) {
     Message message;
+    message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_JOIN);
     message.name = name;
 
@@ -28,6 +29,7 @@ inline Message createJoinMessage(char *name) {
 
 inline Message createAddMemberMessage(Node nodeInfo) {
     Message message;
+    message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_ADD_MEMBER);
     message.nodeInfo = nodeInfo;
 
@@ -36,6 +38,7 @@ inline Message createAddMemberMessage(Node nodeInfo) {
 
 inline Message createMemberListMessage(NodeListItem *memberList) {
     Message message;
+    message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_MEMBER_LIST);
     message.memberList = memberList;
 
@@ -44,6 +47,7 @@ inline Message createMemberListMessage(NodeListItem *memberList) {
 
 inline Message createNoteMessage(char *note) {
     Message message;
+    message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_NOTE);
     message.note = note;
 
@@ -52,6 +56,7 @@ inline Message createNoteMessage(char *note) {
 
 inline Message createLeaveMessage() {
     Message message;
+    message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_LEAVE);
 
     return message;
@@ -59,6 +64,7 @@ inline Message createLeaveMessage() {
 
 inline Message createShutdownAllMessage() {
     Message message;
+    message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_SHUTDOWN_ALL);
 
     return message;

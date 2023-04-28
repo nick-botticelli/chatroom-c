@@ -7,8 +7,21 @@
 
 #include "debug.h"
 
+void repositionCursor() {
+    // Remove the two command prompt characters ('> '),
+    // then move input cursor down,
+    // then print command prompt characters
+    debug("Reposition cursor!");
+    printf("\b\b%s" CMD_PROMPT, ANSI_MOVE_CURSOR_DOWN);
+
+    // Move input cursor down
+    // printf("%s", ANSI_MOVE_CURSOR_DOWN);
+}
+
 void handleClient(Message *message) {
     int messageType = message->header >> 5;
+
+    repositionCursor();
 
     switch (messageType) {
         case 0:

@@ -16,6 +16,7 @@
 // TODO: Remove
 #define SERVER_ADDR "127.0.0.1"
 
+// TODO: Move this to debug.c
 void debugMessage(Message message) {
     MessageType msgType = getMessageType(message.header);
 
@@ -42,7 +43,7 @@ void debugMessage(Message message) {
     debug("}\n");
 }
 
-void *send_handler(void *unused) {
+void *send_handler(void *ioDataRaw) {
     int sock;
 
     int32_t inputRaw, input;
@@ -51,21 +52,16 @@ void *send_handler(void *unused) {
 
     struct sockaddr_in serv_addr;
 
-    // TODO: Read properties file (chatnode.properties): read IP + port + username
+    IOData ioData = *(IOData *) ioDataRaw;
 
-    // Initialize socket
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == -1) {
-        perror("Failed to create socket");
-        return NULL;
-    }
+    // TODO: Read properties file (chatnode.properties): read IP + port + username
 
     // Command loop
     puts("Enter a command, or type '/help' for a list of commands.\n");
     while (true) {
         char cmdBuf[128]; // 100 characters for message + command
 
-        printf("> ");
+        printf(CMD_PROMPT);
 
         // Read command input and craft outbound message
         scanf(" %127[^\n]", cmdBuf);
@@ -77,7 +73,7 @@ void *send_handler(void *unused) {
 
             // Send message
             // TODO: Loop through all members of chat room to send to
-            sendMessage(sock, cmdResult->message);
+            sendMessage(ioData.sock, cmdResult->message);
         }
     }
 
@@ -106,7 +102,7 @@ void *send_handler(void *unused) {
     return NULL;
 }
 
-void *receive_handler(void *unused) {
+void *receive_handler(void *ioDataRaw) {
     int sock;
 
     int32_t inputRaw, input;
@@ -115,27 +111,22 @@ void *receive_handler(void *unused) {
 
     struct sockaddr_in serv_addr;
 
-    // Initialize socket
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == -1) {
-        perror("Failed to create socket");
-        return NULL;
-    }
+    IOData ioData = *(IOData *) ioDataRaw;
 
     bzero((char *) &serv_addr, sizeof(serv_addr));
 
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(PORT);
 
-    if (inet_pton(AF_INET, SERVER_ADDR, &serv_addr.sin_addr) <= 0) {
-        perror("Error: Invalid address (address not supported)");
-        return NULL;
-    }
+    // if (inet_pton(AF_INET, SERVER_ADDR, &serv_addr.sin_addr) <= 0) {
+    //     perror("Error: Invalid address (address not supported)");
+    //     return NULL;
+    // }
 
-    if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-        perror("Error: Failed to connect to server");
-        return NULL;
-    }
+    // if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+    //     perror("Error: Failed to connect to server");
+    //     return NULL;
+    // }
 
     printf("Client connected successfully.\n");
     while (true) {
@@ -150,18 +141,25 @@ void *receive_handler(void *unused) {
 }
 
 int main(int argc, char *argv[]) {
-    puts("=== chat_node ===\n");
-
     pthread_t senderThread, receiverThread;
 
+    puts("=== chat_node ===\n");
+
+    IOData ioData;
+    ioData.sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == -1) {
+        perror("Failed to create socket");
+        return EXIT_FAILURE;
+    }
+
     // Create sender thread
-    if (pthread_create(&senderThread, NULL, send_handler, (void *) NULL) < 0) {
+    if (pthread_create(&senderThread, NULL, send_handler, (void *) &ioData) < 0) {
         perror("Error: Could not create sender thread");
         return EXIT_FAILURE;
     }
 
     // Create receiver thread
-    // if (pthread_create(&receiverThread, NULL, receive_handler, (void *) NULL) < 0) {
+    // if (pthread_create(&receiverThread, NULL, receive_handler, (void *) &ioData) < 0) {
     //     perror("Error: Could not create receiver thread");
     //     return EXIT_FAILURE;
     // }

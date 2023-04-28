@@ -10,6 +10,11 @@
 #include "message.h"
 
 bool sendMessage(int sock, Message message) {
+    size_t serializedMessageLen;
+    uint8_t *serializedMessage = serializeMessage(message, &serializedMessageLen);
+
+    debug_hexdump(serializedMessage, serializedMessageLen);
+
     if (send(sock, &message, sizeof(message), 0) == -1) {
         perror("Error: Send failed");
         return false;

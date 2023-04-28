@@ -17,6 +17,11 @@ typedef struct NodeListItem {
 
 typedef NodeListItem *NodeList;
 
+typedef struct {
+    Node node;
+    int sock;
+} IOData;
+
 
 
 Node *getNode(int index);
