@@ -12,6 +12,7 @@
 #include "debug.h"
 #include "receiver_handler.h"
 #include "sender_handler.h"
+#include "properties.h"
 
 // TODO: Remove
 #define SERVER_ADDR "127.0.0.1"
@@ -43,15 +44,23 @@ void debugMessage(Message message) {
     debug("}\n");
 }
 
-void *send_handler(void *ioDataRaw) {
-    int sock;
+chatnode_properties load_properties() {
+    char* properties_file = "chatnode.properties";
+    Properties* properties;
+    chatnode_properties chatnode_props;
 
+    chatnode_props.ip = property_get_property(properties, "ip");
+    chatnode_props.port = property_get_property(properties, "port");
+    chatnode_props.username = property_get_property(properties, "username");
+
+    return chatnode_props;
+}
+
+void *send_handler(void *ioDataRaw) {
     int32_t inputRaw, input;
     int32_t responseRaw, response;
     ssize_t response_length;
-
     struct sockaddr_in serv_addr;
-
     IOData ioData = *(IOData *) ioDataRaw;
 
     // TODO: Read properties file (chatnode.properties): read IP + port + username
@@ -144,8 +153,16 @@ int main(int argc, char *argv[]) {
     pthread_t senderThread, receiverThread;
 
     puts("=== chat_node ===\n");
+    
+    chatnode_properties chatnode_props = load_properties();
+    
+    Node node;
+    node.ip = chatnode_props.ip;
+    node.port = atoi(chatnode_props.port);
+    node.name = chatnode_props.username;
 
     IOData ioData;
+    ioData.node = node;
     ioData.sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1) {
         perror("Failed to create socket");
