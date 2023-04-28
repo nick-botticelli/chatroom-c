@@ -10,12 +10,17 @@ typedef struct {
     char *name;
 } Node;
 
-typedef struct {
+typedef struct NodeListItem {
     Node *node;
-    Node *nextNode;
+    struct NodeListItem *nextNode;
 } NodeListItem;
 
 typedef NodeListItem *NodeList;
+
+typedef struct {
+    Node node;
+    int sock;
+} IOData;
 
 
 

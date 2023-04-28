@@ -43,9 +43,9 @@ char* property_get_property(Properties* properties, char* key) {
 Properties* property_read_properties(char* properties_file_string)
 {
     FILE* properties_file;
-    char key[65];
-    char value[65];
-    char line[65];
+    char key[64];
+    char value[64];
+    char line[64];
     
     Properties* properties = property_list_new();
     Property* property_ptr;
@@ -59,7 +59,7 @@ Properties* property_read_properties(char* properties_file_string)
     // add each property to the properties list
     while(fgets(line, sizeof(line), properties_file))
     {
-        sscanf(line, "%64s = %64s", key, value);
+        sscanf(line, "%63s = %63s", key, value);
         
         property_ptr = property_new(key, value);
         property_list_add_property(properties, property_ptr);

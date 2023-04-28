@@ -30,3 +30,7 @@
 #define probe(A, M, ...) if(!(A)) { log_err(M, ##__VA_ARGS__); errno=0; goto error; }
 // sentinel() put into a part of a program that should not be accessed by program flow. if still accessed, logs error and goes to 'error'
 #define sentinel(M, ...)          { log_err(M, ##__VA_ARGS__); errno=0; goto error; }
+
+
+
+void debug_hexdump(void *data, size_t size);
