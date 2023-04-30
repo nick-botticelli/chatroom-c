@@ -4,8 +4,14 @@
 #include <stdio.h>
 #include <string.h>
 
-inline int getBit(uint8_t byteFlag, int bitNum) {
-    return (byteFlag & (1 << (bitNum - 1)));
+#include "debug.h"
+
+inline bool getBit(uint8_t byteFlag, int bitNum) {
+    return byteFlag & (1 << (bitNum - 1));
+}
+
+inline void setBit(uint8_t *byteFlag, int bitNum, bool bitValue) {
+    *byteFlag |= bitValue << bitNum;
 }
 
 inline MessageType getMessageType(MessageHeader messageHeader) {
@@ -18,16 +24,16 @@ inline void setMessageType(MessageHeader *messageHeader, MessageType messageType
     *messageHeader = (*messageHeader & ~0xE0) | ((messageType << 5) & 0xE0);
 }
 
-inline Message createJoinMessage(char *name) {
+inline Message createJoinMessage(char *username) {
     Message message;
     message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_JOIN);
-    message.name = name;
+    message.username = username;
 
     return message;
 }
 
-inline Message createAddMemberMessage(Node nodeInfo) {
+inline Message createAddMemberMessage(Node *nodeInfo) {
     Message message;
     message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_ADD_MEMBER);
@@ -36,11 +42,11 @@ inline Message createAddMemberMessage(Node nodeInfo) {
     return message;
 }
 
-inline Message createMemberListMessage(NodeListItem *memberList) {
+inline Message createMemberListMessage(Node *nodeList) {
     Message message;
     message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_MEMBER_LIST);
-    message.memberList = memberList;
+    message.nodeList = nodeList;
 
     return message;
 }
@@ -54,28 +60,23 @@ inline Message createNoteMessage(char *note) {
     return message;
 }
 
-inline Message createLeaveMessage() {
+inline Message createLeaveMessage(bool shutdownAll) {
     Message message;
     message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_LEAVE);
 
-    return message;
-}
-
-inline Message createShutdownAllMessage() {
-    Message message;
-    message.header = BLANK_HEADER;
-    setMessageType(&message.header, MSG_SHUTDOWN_ALL);
+    // Shutdown all flag (Flag 5)
+    setBit(&message.header, 0, shutdownAll);
 
     return message;
 }
 
-inline extern inline size_t getNodeSize(Node *node) {
+inline size_t getNodeSize(Node *node) {
     size_t nodeLen = 0;
 
     nodeLen += strlen(node->ip) + 1;
     nodeLen += 2; // short (port)
-    nodeLen += strlen(node->name);
+    nodeLen += strlen(node->username);
 
     return nodeLen;
 }
@@ -87,23 +88,25 @@ inline size_t getSerializedMessageSize(Message message) {
     MessageType msgType = getMessageType(message.header);
     switch (msgType) {
         case MSG_JOIN:
-            serializedMsgLen += strlen(message.name) + 1;
+            serializedMsgLen += strlen(message.username) + 1;
             break;
         case MSG_ADD_MEMBER:
-            serializedMsgLen += getNodeSize(&message.nodeInfo);
+            serializedMsgLen += getNodeSize(message.nodeInfo);
             break;
         case MSG_MEMBER_LIST: {
-            NodeListItem *curNodeItem = message.memberList;
+            Node *curNodeItem = message.nodeList;
 
             do {
                 curNodeItem = curNodeItem->nextNode;
                 serializedMsgLen += getNodeSize(curNodeItem);
             }
-            while (message.memberList->nextNode != NULL);
+            while (message.nodeList->nextNode != NULL);
             break;
         }
         case MSG_NOTE:
             serializedMsgLen += strlen(message.note) + 1;
+            break;
+        default:
             break;
     }
 
@@ -114,10 +117,10 @@ inline uint8_t *serializeNode(Node *node, size_t *rawNodeLenOut) {
     *rawNodeLenOut = getNodeSize(node);
     uint8_t *serializedNode = malloc(*rawNodeLenOut);
 
-    *rawNodeLenOut += strlen(strcpy(serializedNode, node->ip)); // Copy IP
+    *rawNodeLenOut += strlen(strcpy((char *) serializedNode, node->ip)); // Copy IP
     memcpy(serializedNode + *rawNodeLenOut, &node->port, sizeof(node->port)); // Copy port
     *rawNodeLenOut += 2;
-    *rawNodeLenOut += strlen(strcpy(serializedNode + *rawNodeLenOut, node->name)); // Copy username
+    *rawNodeLenOut += strlen(strcpy((char *) serializedNode + *rawNodeLenOut, node->username)); // Copy username
 
     return serializedNode;
 }
@@ -135,30 +138,40 @@ inline uint8_t *serializeMessage(Message message, size_t *rawMsgLenOut) {
     MessageType msgType = getMessageType(message.header);
     switch (msgType) {
         case MSG_JOIN:
-            strcpy(rawMsg + rawMsgIndex, message.name);
+            strcpy((char *) rawMsg + rawMsgIndex, message.username);
             break;
         case MSG_ADD_MEMBER: {
             size_t rawNodeLen;
-            memcpy(rawMsg + rawMsgIndex, serializeNode(&message.nodeInfo, &rawNodeLen), rawNodeLen);
+            uint8_t *serializedNode = serializeNode(message.nodeInfo, &rawNodeLen);
+            memcpy(rawMsg + rawMsgIndex, serializedNode, rawNodeLen);
             rawMsgIndex += rawNodeLen;
+            free(serializedNode);
             break;
         }
         case MSG_MEMBER_LIST: {
-            NodeListItem *curNodeItem = message.memberList;
+            Node *curNode = message.nodeList;
 
             do {
-                curNodeItem = curNodeItem->nextNode;
+                curNode = curNode->nextNode;
                 size_t rawNodeLen;
-                memcpy(rawMsg + rawMsgIndex, serializeNode(curNodeItem, &rawNodeLen), rawNodeLen);
+                uint8_t *serializedNode = serializeNode(curNode, &rawNodeLen);
+                memcpy(rawMsg + rawMsgIndex, serializedNode, rawNodeLen);
                 rawMsgIndex += rawNodeLen;
+                free(serializedNode);
             }
-            while (message.memberList->nextNode != NULL);
+            while (message.nodeList->nextNode != NULL);
             break;
         }
         case MSG_NOTE:
-            strcpy(rawMsg + rawMsgIndex, message.note);
+            strcpy((char *) rawMsg + rawMsgIndex, message.note);
+            break;
+        default:
             break;
     }
 
     return rawMsg;
+}
+
+inline void deserializeMessage(uint8_t *messageRaw, Message *messageOut) {
+    debug("deserializeMessage()");
 }

@@ -20,5 +20,7 @@ typedef struct {
 
 
 
-bool sendMessage(int sock, Message message);
-CommandResult *handleCommand(char *input);
+extern inline bool sendMessage(int sock, Message message);
+extern inline bool isSocketConnected(int sock);
+extern inline void connectSocket(Node *node);
+extern inline bool handleCommand(Node *nodeList, char *input, CommandResult *cmdResultOut);

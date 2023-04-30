@@ -7,6 +7,9 @@
 
 #define BLANK_HEADER (MessageHeader) 0
 
+// One byte for header
+#define MAX_PAYLOAD_SIZE 127
+
 /**
  * Bits:
  * 0: Packet type
@@ -25,8 +28,7 @@ typedef enum {
     MSG_ADD_MEMBER,
     MSG_MEMBER_LIST,
     MSG_NOTE,
-    MSG_LEAVE,
-    MSG_SHUTDOWN_ALL
+    MSG_LEAVE
 } MessageType;
 
 typedef struct {
@@ -36,17 +38,17 @@ typedef struct {
     union {
         // Join
         struct {
-            char *name;
+            char *username;
         };
 
         // Add member
         struct {
-            Node nodeInfo;
+            Node *nodeInfo;
         };
 
         // Member list
         struct {
-            NodeListItem *memberList;
+            Node *nodeList;
         };
 
         // Note
@@ -56,30 +58,32 @@ typedef struct {
 
         // Leave
         struct {
+            // Flag 5 = boolean, whether to shutdown chat room (1) or not (0)
         };
 
         // Shutdown all
-        struct {
-        };
+        // struct {
+        // };
     };
 } Message;
 
 
 
-extern inline int getBit(uint8_t byteFlag, int bitNum);
+extern inline bool getBit(uint8_t byteFlag, int bitNum);
+extern inline void setBit(uint8_t *byteFlag, int bitNum, bool bitValue);
 
 extern inline MessageType getMessageType(MessageHeader messageHeader);
 extern inline void setMessageType(MessageHeader *messageHeader, MessageType messageType);
 
-extern inline Message createJoinMessage(char *name);
-extern inline Message createAddMemberMessage(Node nodeInfo);
-extern inline Message createMemberListMessage(NodeListItem *memberList);
+extern inline Message createJoinMessage(char *username);
+extern inline Message createAddMemberMessage(Node *nodeInfo);
+extern inline Message createMemberListMessage(Node *nodeList);
 extern inline Message createNoteMessage(char *note);
-extern inline Message createLeaveMessage();
-extern inline Message createShutdownAllMessage();
+extern inline Message createLeaveMessage(bool shutdownAll);
 
 extern inline size_t getNodeSize(Node *node);
 extern inline size_t getSerializedMessageSize(Message message);
 extern inline uint8_t *serializeNode(Node *node, size_t *rawNodeLenOut);
 extern inline uint8_t *serializeMessage(Message message, size_t *serializedMessageLenOut);
-extern inline Message *deserializeMessage(uint8_t *rawMessage);
+
+extern inline void deserializeMessage(uint8_t *messageRaw, Message *messageOut);

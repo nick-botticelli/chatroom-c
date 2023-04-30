@@ -1,3 +1,5 @@
+#include "main.h"
+
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <pthread.h>
@@ -10,24 +12,22 @@
 
 #include "chat_node.h"
 #include "debug.h"
+#include "properties.h"
 #include "receiver_handler.h"
 #include "sender_handler.h"
-#include "properties.h"
-
-// TODO: Remove
-#define SERVER_ADDR "127.0.0.1"
 
 // TODO: Move this to debug.c
-void debugMessage(Message message) {
+extern inline void debugMessage(Message message) {
+#ifndef NDEBUG
     MessageType msgType = getMessageType(message.header);
 
-    debug("Message {\n");
-    debug("\theader:\n");
-    debug("\t\ttype = %d\n", msgType);
+    printf("Message {\n");
+    printf("\theader:\n");
+    printf("\t\ttype = %d\n", msgType);
 
     switch (msgType) {
         case MSG_JOIN:
-            debug("\tname = %s\n", message.name);
+            printf("\tname = %s\n", message.username);
             break;
         case MSG_ADD_MEMBER:
             break;
@@ -37,161 +37,170 @@ void debugMessage(Message message) {
             break;
         case MSG_LEAVE:
             break;
-        case MSG_SHUTDOWN_ALL:
-            break;
     }
 
-    debug("}\n");
+    printf("}\n");
+#endif
 }
 
-chatnode_properties load_properties() {
-    char* properties_file = "chatnode.properties";
-    Properties* properties;
-    chatnode_properties chatnode_props;
+inline void loadProperties(Node *nodeOut) {
+    Properties *properties = property_read_properties(CONFIG_PATH);
 
-    chatnode_props.ip = property_get_property(properties, "ip");
-    chatnode_props.port = property_get_property(properties, "port");
-    chatnode_props.username = property_get_property(properties, "username");
+    char *ip = property_get_property(properties, "ip");
+    short port = atoi(property_get_property(properties, "port"));
+    char *username = property_get_property(properties, "username");
 
-    return chatnode_props;
+    createNode(ip, port, username, nodeOut);
 }
 
-void *send_handler(void *ioDataRaw) {
-    int32_t inputRaw, input;
-    int32_t responseRaw, response;
-    ssize_t response_length;
-    struct sockaddr_in serv_addr;
-    IOData ioData = *(IOData *) ioDataRaw;
-
-    // TODO: Read properties file (chatnode.properties): read IP + port + username
+void *send_handler(void *nodeListRaw) {
+    Node *nodeList = (Node *) nodeListRaw;
 
     // Command loop
     puts("Enter a command, or type '/help' for a list of commands.\n");
+
     while (true) {
-        char cmdBuf[128]; // 100 characters for message + command
+        char cmdBuf[MAX_PAYLOAD_SIZE];
 
         printf(CMD_PROMPT);
 
-        // Read command input and craft outbound message
-        scanf(" %127[^\n]", cmdBuf);
+        // Read terminal input (command) and craft outbound message
+        scanf(" %126[^\n]", cmdBuf); // MAX_PAYLOAD_SIZE - 1 = 126  ->  1 byte saved for null terminator
         // debug("Input: %s\n", cmdBuf);
-        CommandResult *cmdResult = handleCommand(cmdBuf);
+        CommandResult cmdResult;
+        bool handleCmdSuccess = handleCommand(nodeList, cmdBuf, &cmdResult);
 
-        if (cmdResult != NULL) {
-            // debugMessage(cmdResult->message);
+        if (handleCmdSuccess) {
+            debugMessage(cmdResult.message);
 
-            // Send message
-            // TODO: Loop through all members of chat room to send to
-            sendMessage(ioData.sock, cmdResult->message);
+            // Send message to all recipients; all Messages created by handleCommand should be sent
+            // to all clients
+            Node *curNode = nodeList;
+            while (curNode != NULL) {
+                sendMessage(curNode->sock, cmdResult.message);
+
+                // Move to next node
+                curNode = nodeList->nextNode;
+            }
+
+            if (cmdResult.action == ACTION_LEAVE || cmdResult.action == ACTION_SHUTDOWN)
+                break;
         }
     }
 
-    // sock = socket(AF_INET, SOCK_STREAM, 0);
-    // if (sock < 0) {
-    //     perror("Failed to create socket");
-    //     return NULL;
-    // }
-
-    // bzero((char *) &serv_addr, sizeof(serv_addr));
-
-    // serv_addr.sin_family = AF_INET;
-    // serv_addr.sin_port = htons(PORT);
-
-    // if (inet_pton(AF_INET, SERVER_ADDR, &serv_addr.sin_addr) <= 0) {
-    //     perror("Error: Invalid address (address not supported)");
-    //     return NULL;
-    // }
-
-    // if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-    //     perror("Error: Failed to connect to server");
-    //     return NULL;
-    // }
-
-    close(sock);
+    printf("Shutting down...\n");
+    
     return NULL;
 }
 
-void *receive_handler(void *ioDataRaw) {
-    int sock;
+void *receive_handler(void *nodeRaw) {
+    Node *node = (Node *) nodeRaw;
 
-    int32_t inputRaw, input;
-    int32_t responseRaw, response;
-    ssize_t response_length;
-
-    struct sockaddr_in serv_addr;
-
-    IOData ioData = *(IOData *) ioDataRaw;
-
-    bzero((char *) &serv_addr, sizeof(serv_addr));
-
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
-
-    // if (inet_pton(AF_INET, SERVER_ADDR, &serv_addr.sin_addr) <= 0) {
-    //     perror("Error: Invalid address (address not supported)");
-    //     return NULL;
-    // }
-
-    // if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-    //     perror("Error: Failed to connect to server");
-    //     return NULL;
-    // }
-
-    printf("Client connected successfully.\n");
     while (true) {
-        Message *message = receiveMessage(sock);
-        handleClient(message);
+        Message message;
 
-        // printf("Server response: %d\n", message->);
+        if (receiveMessage(node->sock, &message)) {
+            debug("Successfully deserialized message!");
+
+            handleClient(message);
+        }
     }
 
-    close(sock);
+    return NULL;
+}
+
+void *initial_receive_handler(void *nodeRaw) {
+    Node *node = (Node *) nodeRaw;
+    struct sockaddr_in server_address;
+
+    // create unnamed network socket for server to listen on
+    if ((node->sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        perror("Error creating initial server socket");
+        exit(EXIT_FAILURE);
+    }
+    
+    // name the socket (making sure the correct network byte ordering is observed)
+    server_address.sin_family      = AF_INET;           // accept IP addresses
+    server_address.sin_addr.s_addr = htonl(INADDR_ANY); // accept clients on any interface
+    server_address.sin_port        = htons(node->port); // port to listen on
+    
+    // binding unnamed socket to a particular port
+    if (bind(node->sock, (struct sockaddr *) &server_address, sizeof(server_address)) == -1) {
+        perror("Error binding initial server socket");
+        exit(EXIT_FAILURE);
+    }
+    
+    // listen for client connections (pending connections get put into a queue)
+    if (listen(node->sock, 1) == -1) {
+        perror("Error listening on initial server socket");
+        exit(EXIT_FAILURE);
+    }
+
+    while (true) {
+        Node newNode;
+        acceptNode(&node, &newNode);
+
+        debug("Accepted client!\n");
+
+        pthread_t receive_thread;
+        if (pthread_create(&receive_thread, NULL, receive_handler, (void *) &newNode) == -1) {
+            perror("Error: Could not create receiver thread");
+            exit(EXIT_FAILURE);
+        }
+        
+        // detach the thread so that we don't have to wait (join) with it to reclaim memory.
+        // memory will be reclaimed when the thread finishes.
+        if (pthread_detach(receive_thread) == -1) {
+            perror("Error: Could not detach receiver thread");
+            exit(EXIT_FAILURE);
+        }
+    }
+    
     return NULL;
 }
 
 int main(int argc, char *argv[]) {
-    pthread_t senderThread, receiverThread;
+    int result = EXIT_SUCCESS;
+    pthread_t senderThread, initialReceiverThread;
 
     puts("=== chat_node ===\n");
     
-    chatnode_properties chatnode_props = load_properties();
-    
     Node node;
-    node.ip = chatnode_props.ip;
-    node.port = atoi(chatnode_props.port);
-    node.name = chatnode_props.username;
+    loadProperties(&node);
 
-    IOData ioData;
-    ioData.node = node;
-    ioData.sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == -1) {
-        perror("Failed to create socket");
-        return EXIT_FAILURE;
-    }
+    debug("IP: %s", node.ip);
+    debug("Port: %d", node.port);
+    debug("Username: %s", node.username);
 
     // Create sender thread
-    if (pthread_create(&senderThread, NULL, send_handler, (void *) &ioData) < 0) {
+    if (pthread_create(&senderThread, NULL, send_handler, (void *) &node) < 0) {
         perror("Error: Could not create sender thread");
-        return EXIT_FAILURE;
+        result = EXIT_FAILURE;
+        goto END;
     }
 
-    // Create receiver thread
-    // if (pthread_create(&receiverThread, NULL, receive_handler, (void *) &ioData) < 0) {
-    //     perror("Error: Could not create receiver thread");
-    //     return EXIT_FAILURE;
-    // }
+    if (node.ip == NULL) {
+        // Create initial receiver thread
+        if (pthread_create(&initialReceiverThread, NULL, initial_receive_handler, (void *) &node) < 0) {
+            perror("Error: Could not create initial receiver thread");
+            result = EXIT_FAILURE;
+            goto END;
+        }
+
+        // Detach receiver thread
+        if (pthread_detach(initialReceiverThread)) {
+            fprintf(stderr, "Error: Could not join initial receiver thread!\n");
+            return EXIT_FAILURE;
+        }
+    }
 
     // Join sender thread
     if (pthread_join(senderThread, NULL)) {
         fprintf(stderr, "Error: Could not join sender thread!\n");
-        return EXIT_FAILURE;
+        result = EXIT_FAILURE;
+        goto END;
     }
 
-    // Join receiver thread
-    // if (pthread_join(receiverThread, NULL)) {
-    //     fprintf(stderr, "Error: Could not join receiver thread!\n");
-    //     return EXIT_FAILURE;
-    // }
-
-    return EXIT_SUCCESS;
+END:
+    return result;
 }

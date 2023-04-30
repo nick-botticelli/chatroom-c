@@ -7,19 +7,18 @@
 
 #include "debug.h"
 
-void repositionCursor() {
+inline void repositionCursor() {
     // Remove the two command prompt characters ('> '),
     // then move input cursor down,
     // then print command prompt characters
-    debug("Reposition cursor!");
     printf("\b\b%s" CMD_PROMPT, ANSI_MOVE_CURSOR_DOWN);
 
     // Move input cursor down
     // printf("%s", ANSI_MOVE_CURSOR_DOWN);
 }
 
-void handleClient(Message *message) {
-    int messageType = message->header >> 5;
+inline void handleClient(Message message) {
+    int messageType = message.header >> 5;
 
     repositionCursor();
 
@@ -51,15 +50,19 @@ void handleClient(Message *message) {
     }
 }
 
-Message *receiveMessage(int sock) {
-    Message message;
+inline bool receiveMessage(int sock, Message *messageOut) {
+    uint8_t messageRaw[MAX_PAYLOAD_SIZE + 1];
+    ssize_t messageRawLen = recv(sock, &messageRaw, sizeof(messageRaw), 0);
 
-    ssize_t response_length = recv(sock, &message, sizeof(message), 0);
-    if (response_length == -1) {
-        perror("Error: Receive failed");
-        return NULL;
+    if (messageRawLen == -1) {
+        debug("Error reading message?");
+        return false;
     }
 
+    debug("Received message hexdump:");
+    debug_hexdump(messageRaw, messageRawLen);
+
     // Create message from received data
-    return NULL;
+    deserializeMessage(messageRaw, messageOut);
+    return true;
 }

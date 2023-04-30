@@ -57,7 +57,7 @@ Properties* property_read_properties(char* properties_file_string)
 
     // run through the lines of the properties file and
     // add each property to the properties list
-    while(fgets(line, sizeof(line), properties_file))
+    while (fgets(line, sizeof(line), properties_file))
     {
         sscanf(line, "%63s = %63s", key, value);
         
@@ -65,10 +65,11 @@ Properties* property_read_properties(char* properties_file_string)
         property_list_add_property(properties, property_ptr);
     }
 
+    fclose(properties_file);
     return properties;
     
 error:
-    printf("Oopsie ...");
+    fprintf(stderr, "Could not load properties file!");
     exit(EXIT_FAILURE);
 }
 
