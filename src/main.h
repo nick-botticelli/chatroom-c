@@ -8,4 +8,4 @@
 
 #define CONFIG_PATH "chatnode.properties"
 
-extern inline void loadProperties(Node *nodeOut);
+extern inline Node *loadProperties();

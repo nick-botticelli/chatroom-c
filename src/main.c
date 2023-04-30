@@ -43,14 +43,14 @@ extern inline void debugMessage(Message message) {
 #endif
 }
 
-inline void loadProperties(Node *nodeOut) {
+inline Node *loadProperties() {
     Properties *properties = property_read_properties(CONFIG_PATH);
 
     char *ip = property_get_property(properties, "ip");
     short port = atoi(property_get_property(properties, "port"));
     char *username = property_get_property(properties, "username");
 
-    createNode(ip, port, username, nodeOut);
+    return createNode(ip, port, username, true);
 }
 
 void *send_handler(void *nodeListRaw) {
@@ -77,7 +77,9 @@ void *send_handler(void *nodeListRaw) {
             // to all clients
             Node *curNode = nodeList;
             while (curNode != NULL) {
-                sendMessage(curNode->sock, cmdResult.message);
+                // Do not send to nodes (including self) with null IPs
+                if (curNode->ip != NULL)
+                    sendMessage(curNode->sock, cmdResult.message);
 
                 // Move to next node
                 curNode = nodeList->nextNode;
@@ -137,13 +139,12 @@ void *initial_receive_handler(void *nodeRaw) {
     }
 
     while (true) {
-        Node newNode;
-        acceptNode(&node, &newNode);
+        Node *newNode = acceptNode(&node);
 
         debug("Accepted client!\n");
 
         pthread_t receive_thread;
-        if (pthread_create(&receive_thread, NULL, receive_handler, (void *) &newNode) == -1) {
+        if (pthread_create(&receive_thread, NULL, receive_handler, (void *) newNode) == -1) {
             perror("Error: Could not create receiver thread");
             exit(EXIT_FAILURE);
         }
@@ -165,23 +166,22 @@ int main(int argc, char *argv[]) {
 
     puts("=== chat_node ===\n");
     
-    Node node;
-    loadProperties(&node);
+    Node *node = loadProperties();
 
-    debug("IP: %s", node.ip);
-    debug("Port: %d", node.port);
-    debug("Username: %s", node.username);
+    debug("IP: %s", node->ip);
+    debug("Port: %d", node->port);
+    debug("Username: %s", node->username);
 
     // Create sender thread
-    if (pthread_create(&senderThread, NULL, send_handler, (void *) &node) < 0) {
+    if (pthread_create(&senderThread, NULL, send_handler, (void *) node) < 0) {
         perror("Error: Could not create sender thread");
         result = EXIT_FAILURE;
         goto END;
     }
 
-    if (node.ip == NULL) {
+    if (node->ip == NULL) {
         // Create initial receiver thread
-        if (pthread_create(&initialReceiverThread, NULL, initial_receive_handler, (void *) &node) < 0) {
+        if (pthread_create(&initialReceiverThread, NULL, initial_receive_handler, (void *) node) < 0) {
             perror("Error: Could not create initial receiver thread");
             result = EXIT_FAILURE;
             goto END;

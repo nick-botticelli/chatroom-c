@@ -23,22 +23,15 @@ typedef struct Node {
 
 
 /**
- * @brief Create a Node linked list safely (initializes the entire struct) with an initial
- *        Node
- * @param nodeListOut the output Node linked list location
- * @param initialNode the initial node to put in the new NodeList
- */
-// extern inline void createNodeList(Node *nodeListOut, Node initialNode);
-
-/**
  * @brief Create a Node safely (initializes the entire struct)
  * @param ip the ip string
  * @param port the 2-byte (16-bit) port
  * @param username the person's username string to use in chat messages
- * @param nodeOut the output Node created
+ * @param createSocket whether to create a new socket immediately or leave null
  */
-extern inline void createNode(char *ip, short port, char *username, Node *nodeOut);
+extern inline Node *createNode(char *ip, short port, char *username, bool createSocket);
 
-extern inline void acceptNode(Node **nodeList, Node *nodeOut);
+extern inline void printNodeList(Node *nodeList);
+extern inline Node *acceptNode(Node **nodeList);
 extern inline void addNode(Node **nodeList, Node *node);
 extern inline void removeNode(Node **nodeList, Node *node);

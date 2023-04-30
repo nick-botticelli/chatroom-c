@@ -1,42 +1,77 @@
 #include "chat_node.h"
 
-#include <stdio.h> // TODO: Remove
+#include <arpa/inet.h>
 #include <stdlib.h>
+#include <stdio.h> // TODO: Remove
 #include <sys/socket.h>
+#include <unistd.h>
 
-inline void createNode(char *ip, short port, char *username, Node *nodeOut) {
-    nodeOut->ip = ip;
-    nodeOut->port = port;
-    nodeOut->username = username;
-    nodeOut->sock = socket(AF_INET, SOCK_STREAM, 0);
-    nodeOut->connected = false;
-    nodeOut->nextNode = NULL;
+#include "debug.h"
+
+inline void printNodeList(Node *nodeList) {
+#ifndef NDEBUG
+    Node *curNode = nodeList;
+
+    // Traverse linked list until we find the node to remove
+    printf("===== Node list =====\n");
+    while (curNode != NULL) {
+        printf("\t%p: %s:%d - %s - \t -> %p\n", curNode, curNode->ip, curNode->port, curNode->username, curNode->nextNode);
+        curNode = curNode->nextNode;
+        sleep(1);
+    }
+    printf("=====================\n");
+#endif
 }
 
-inline void acceptNode(Node **nodeList, Node *nodeOut) {
-    nodeOut->ip = NULL;
-    nodeOut->port = 0;
-    nodeOut->username = NULL;
-    nodeOut->sock = accept((*nodeList)->sock, NULL, NULL);
-    nodeOut->connected = true;
-    nodeOut->nextNode = NULL;
+inline Node *createNode(char *ip, short port, char *username, bool createSocket) {
+    Node *node = malloc(sizeof(Node));
+    node->ip = ip;
+    node->port = port;
+    node->username = username;
+    node->sock = createSocket ? socket(AF_INET, SOCK_STREAM, 0) : 0;
+    node->connected = false;
+    node->nextNode = NULL;
 
-    addNode(nodeList, nodeOut);
+    return node;
+}
+
+inline Node *acceptNode(Node **nodeList) {
+    struct sockaddr addr;
+    socklen_t addrlen = sizeof(addr);
+    int sock = accept((*nodeList)->sock, &addr, &addrlen);
+    struct sockaddr_in *ipV4Addr = (struct sockaddr_in *) &addr;
+    struct in_addr ipAddr = ipV4Addr->sin_addr;
+    char ipStr[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &ipAddr, ipStr, INET_ADDRSTRLEN);
+    short port = ntohs(ipV4Addr->sin_port);
+
+    Node *node = createNode(ipStr, port, NULL, false);
+    node->sock = sock;
+    node->connected = true;
+
+    addNode(nodeList, node);
+    return node;
 }
 
 inline void addNode(Node **nodeList, Node *node) {
-    if (nodeList == NULL) {
+    if (*nodeList == NULL) { // TODO
         *nodeList = node;
-        node->nextNode = NULL;
+        // node->nextNode = NULL;
         return;
     }
 
-    while ((*nodeList)->nextNode != NULL) {
+    Node *curNode = *nodeList;
+    while (curNode->nextNode != NULL) {
         // Move to next node
-        *nodeList = (*nodeList)->nextNode;
+        curNode = curNode->nextNode;
     }
 
-    (*nodeList)->nextNode = node;
+    debug("curNode: %p", curNode);
+    debug("node: %p", node);
+
+    curNode->nextNode = node;
+
+    printNodeList(*nodeList);
 }
 
 inline void removeNode(Node **nodeList, Node *node) {
@@ -67,4 +102,6 @@ inline void removeNode(Node **nodeList, Node *node) {
             (*nodeList)->nextNode = curNode->nextNode;
         }
     }
+
+    printNodeList(*nodeList);
 }

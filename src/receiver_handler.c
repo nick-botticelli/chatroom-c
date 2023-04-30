@@ -1,9 +1,11 @@
 #include "receiver_handler.h"
 
+#include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <unistd.h> // TODO: Remove
 
 #include "debug.h"
 
@@ -18,34 +20,31 @@ inline void repositionCursor() {
 }
 
 inline void handleClient(Message message) {
-    int messageType = message.header >> 5;
+    MessageType messageType = getMessageType(message.header);
 
-    repositionCursor();
+    // repositionCursor();
 
     switch (messageType) {
-        case 0:
+        case MSG_JOIN:
             // Handle join
-            debug("Join!");
+            debug("Join received!");
+
             break;
-        case 1:
+        case MSG_ADD_MEMBER:
             // Handle add member
-            debug("Add member!");
+            debug("Add member received!");
             break;
-        case 2:
+        case MSG_MEMBER_LIST:
             // Handle member list
-            debug("Join!");
+            debug("Member list received!");
             break;
-        case 3:
-            // Handle message
-            debug("Message!");
+        case MSG_NOTE:
+            // Handle note
+            debug("Note received!");
             break;
-        case 4:
+        case MSG_LEAVE:
             // Handle leave
-            debug("Leave!");
-            break;
-        case 5:
-            // Handle shutdown all
-            debug("Shutdown all!");
+            debug("Leave received!");
             break;
     }
 }
@@ -56,6 +55,7 @@ inline bool receiveMessage(int sock, Message *messageOut) {
 
     if (messageRawLen == -1) {
         debug("Error reading message?");
+        // sleep(1); // TODO: Remove
         return false;
     }
 
