@@ -8,61 +8,95 @@
 #include <unistd.h> // TODO: Remove
 
 #include "debug.h"
+#include "sender_handler.h"
+
+inline void removePrompt() {
+    printf("\b\b");
+}
 
 inline void repositionCursor() {
     // Remove the two command prompt characters ('> '),
     // then move input cursor down,
     // then print command prompt characters
-    printf("\b\b%s" CMD_PROMPT, ANSI_MOVE_CURSOR_DOWN);
-
-    // Move input cursor down
-    // printf("%s", ANSI_MOVE_CURSOR_DOWN);
+    printf("%s" CMD_PROMPT, ANSI_MOVE_CURSOR_DOWN);
 }
 
-inline void handleClient(Message message) {
+inline bool handleClient(Node *nodeList, Node *node, Message message) {
     MessageType messageType = getMessageType(message.header);
-
-    // repositionCursor();
 
     switch (messageType) {
         case MSG_JOIN:
-            // Handle join
             debug("Join received!");
+
+            // Send welcome message with username
+            Message welcomeMessage = createWelcomeMessage(nodeList->username);
+            sendMessage(node->sock, welcomeMessage);
+
+            // Send add member message to all other members of the chat room
+            node->username = message.username;
+            node->port = message.port;
+            debug("Joined client (%p) port: %d", node, node->port);
+
+            printf("%s has joined the chat room.\n", node->username);
+
+            if (getBit(message.header, 0)) {
+                // Only send add member if the member is newly joining
+                Message addMemberMessage = createAddMemberMessage(node);
+                sendMessageAll(nodeList, node, addMemberMessage);
+            }
+            printNodeList(nodeList);
+
+            break;
+        case MSG_WELCOME:
+            debug("Welcome received!");
+
+            node->username = message.remoteUsername;
+            printNodeList(nodeList);
 
             break;
         case MSG_ADD_MEMBER:
-            // Handle add member
             debug("Add member received!");
-            break;
-        case MSG_MEMBER_LIST:
-            // Handle member list
-            debug("Member list received!");
+
+            Message joinMessage;
+            if (connectToNode(nodeList, message.nodeInfo, false, &joinMessage))
+                sendMessage(message.nodeInfo->sock, joinMessage);
+
             break;
         case MSG_NOTE:
-            // Handle note
             debug("Note received!");
+            printf("%s> %s\n", node->username, message.note);
             break;
         case MSG_LEAVE:
-            // Handle leave
             debug("Leave received!");
+            // removeNode(&nodeList, node); // TODO: Not needed?
+            if (getBit(message.header, 0)) {
+                printf("The chat room is shutting down. Goodbye.");
+                return false;
+            }
             break;
     }
+
+    // repositionCursor();
+    return true;
 }
 
-inline bool receiveMessage(int sock, Message *messageOut) {
-    uint8_t messageRaw[MAX_PAYLOAD_SIZE + 1];
-    ssize_t messageRawLen = recv(sock, &messageRaw, sizeof(messageRaw), 0);
+inline bool receiveMessage(Node *nodeList, Node *node, Message *messageOut) {
+    uint8_t rawMessage[MAX_PAYLOAD_SIZE + 1];
+    ssize_t rawMessageSize = recv(node->sock, &rawMessage, sizeof(rawMessage), 0);
 
-    if (messageRawLen == -1) {
+    if (rawMessageSize == -1) {
         debug("Error reading message?");
-        // sleep(1); // TODO: Remove
+        return false;
+    }
+    else if (rawMessageSize == 0) {
+        debug("Socket closed for node %p (%s)!", node, node->username);
+        node->connected = false;
         return false;
     }
 
-    debug("Received message hexdump:");
-    debug_hexdump(messageRaw, messageRawLen);
+    debug("received message!");
 
     // Create message from received data
-    deserializeMessage(messageRaw, messageOut);
+    *messageOut = deserializeMessage(nodeList, rawMessage, rawMessageSize);
     return true;
 }

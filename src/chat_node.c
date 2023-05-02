@@ -2,11 +2,11 @@
 
 #include <arpa/inet.h>
 #include <stdlib.h>
-#include <stdio.h> // TODO: Remove
+#include <stdio.h>
 #include <sys/socket.h>
-#include <unistd.h>
 
 #include "debug.h"
+#include "main.h"
 
 inline void printNodeList(Node *nodeList) {
 #ifndef NDEBUG
@@ -15,21 +15,21 @@ inline void printNodeList(Node *nodeList) {
     // Traverse linked list until we find the node to remove
     printf("===== Node list =====\n");
     while (curNode != NULL) {
-        printf("\t%p: %s:%d - %s - \t -> %p\n", curNode, curNode->ip, curNode->port, curNode->username, curNode->nextNode);
+        printf("%p: %s:%d - %s -\t-> %p\n", curNode, curNode->ip, curNode->port, curNode->username, curNode->nextNode);
         curNode = curNode->nextNode;
-        sleep(1);
     }
     printf("=====================\n");
 #endif
 }
 
-inline Node *createNode(char *ip, short port, char *username, bool createSocket) {
+inline Node *createNode(char *ip, short port, char *username, bool createSocket, bool initialNode) {
     Node *node = malloc(sizeof(Node));
     node->ip = ip;
     node->port = port;
     node->username = username;
     node->sock = createSocket ? socket(AF_INET, SOCK_STREAM, 0) : 0;
     node->connected = false;
+    node->initialNode = initialNode;
     node->nextNode = NULL;
 
     return node;
@@ -43,9 +43,11 @@ inline Node *acceptNode(Node **nodeList) {
     struct in_addr ipAddr = ipV4Addr->sin_addr;
     char ipStr[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &ipAddr, ipStr, INET_ADDRSTRLEN);
-    short port = ntohs(ipV4Addr->sin_port);
+    char *ip = malloc(strlen(ipStr) + 1);
+    strcpy(ip, ipStr);
+    // short port = ntohs(ipV4Addr->sin_port);
 
-    Node *node = createNode(ipStr, port, NULL, false);
+    Node *node = createNode(ip, 0, NULL, false, false);
     node->sock = sock;
     node->connected = true;
 
@@ -78,30 +80,52 @@ inline void removeNode(Node **nodeList, Node *node) {
     Node *prevNode = NULL;
     Node *curNode = *nodeList;
 
+    debug("Node to remove: %p (%s)", node, node->username);
+
     // Traverse linked list until we find the node to remove
     while (curNode != NULL && curNode != node) {
         prevNode = curNode;
         curNode = curNode->nextNode;
     }
 
+    if (curNode == NULL) {
+        debug("Could not find node %p (%s) to remove in node list!", node, node->username);
+        return;
+    }
+
+    debug("Found node to remove: %p (%s)", curNode, curNode->username);
+
     if (prevNode != NULL) {
-        // curNode is the node to remove
-        prevNode->nextNode = node;
-        node->nextNode = node->nextNode;
+        // curNode is the node to remove and not the head of the linked list
+        // prevNode->nextNode = node;
+        // node->nextNode = node->nextNode;
+        prevNode->nextNode = curNode->nextNode;
+        debug("Normal node removal!");
     }
     else {
+        // curNode is the head of the linked list
         // nodeList->node = node;
         *nodeList = node;
 
-        if (curNode == *nodeList) {
-            // Linked list is empty
-            (*nodeList)->nextNode = NULL;
-        }
-        else {
-            // First item is the node to remove (curNode)
-            (*nodeList)->nextNode = curNode->nextNode;
-        }
+        // if (curNode == *nodeList) {
+        //     // Linked list is empty
+        //     (*nodeList)->nextNode = NULL;
+        //     debug("Removing only node in the node list!");
+        // }
+        // else {
+        //     // First item is the node to remove (curNode)
+        //     (*nodeList)->nextNode = curNode->nextNode;
+        //     debug("Removing first node in node list!");
+        // }
+
+        debug("Removing the head in node list!");
+        *nodeList = curNode->nextNode;
     }
+
+    printf("%s has left the chat room.\n", curNode->username);
+
+    // Clean up old node
+    free(curNode);
 
     printNodeList(*nodeList);
 }

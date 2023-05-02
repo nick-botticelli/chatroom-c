@@ -17,8 +17,14 @@ typedef struct Node {
     char *username;
     int sock;
     bool connected;
+    bool initialNode;
     struct Node *nextNode;
 } Node;
+
+typedef struct {
+    Node *nodeList;
+    Node *curNode;
+} ReceiveHandlerData;
 
 
 
@@ -28,8 +34,9 @@ typedef struct Node {
  * @param port the 2-byte (16-bit) port
  * @param username the person's username string to use in chat messages
  * @param createSocket whether to create a new socket immediately or leave null
+ * @param initialNode whether the created node is the initial host node
  */
-extern inline Node *createNode(char *ip, short port, char *username, bool createSocket);
+extern inline Node *createNode(char *ip, short port, char *username, bool createSocket, bool initialNode);
 
 extern inline void printNodeList(Node *nodeList);
 extern inline Node *acceptNode(Node **nodeList);

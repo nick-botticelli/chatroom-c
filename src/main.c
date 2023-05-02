@@ -19,23 +19,27 @@
 // TODO: Move this to debug.c
 extern inline void debugMessage(Message message) {
 #ifndef NDEBUG
-    MessageType msgType = getMessageType(message.header);
+    MessageType messageType = getMessageType(message.header);
 
     printf("Message {\n");
     printf("\theader:\n");
-    printf("\t\ttype = %d\n", msgType);
+    printf("\t\ttype = %d\n", messageType);
 
-    switch (msgType) {
+    switch (messageType) {
         case MSG_JOIN:
-            printf("\tname = %s\n", message.username);
+            printf("\tusername = %s\n", message.username);
+            printf("\tport = %d\n", message.port);
             break;
+        case MSG_WELCOME:
+            printf("\tremoteUsername = %s\n", message.remoteUsername);
         case MSG_ADD_MEMBER:
-            break;
-        case MSG_MEMBER_LIST:
+            printf("\tWIP\n");
             break;
         case MSG_NOTE:
+            printf("\tnote = %s\n", message.note);
             break;
         case MSG_LEAVE:
+            printf("\tshutdownAll = %s\n", getBit(message.header, 0) ? "true" : "false");
             break;
     }
 
@@ -50,7 +54,7 @@ inline Node *loadProperties() {
     short port = atoi(property_get_property(properties, "port"));
     char *username = property_get_property(properties, "username");
 
-    return createNode(ip, port, username, true);
+    return createNode(ip, port, username, true, ip == NULL);
 }
 
 void *send_handler(void *nodeListRaw) {
@@ -73,17 +77,10 @@ void *send_handler(void *nodeListRaw) {
         if (handleCmdSuccess) {
             debugMessage(cmdResult.message);
 
-            // Send message to all recipients; all Messages created by handleCommand should be sent
-            // to all clients
-            Node *curNode = nodeList;
-            while (curNode != NULL) {
-                // Do not send to nodes (including self) with null IPs
-                if (curNode->ip != NULL)
-                    sendMessage(curNode->sock, cmdResult.message);
+            debug("Sending to all...");
+            sendMessageAll(nodeList, NULL, cmdResult.message);
 
-                // Move to next node
-                curNode = nodeList->nextNode;
-            }
+            debug("Command result action: %d", cmdResult.action);
 
             if (cmdResult.action == ACTION_LEAVE || cmdResult.action == ACTION_SHUTDOWN)
                 break;
@@ -95,18 +92,28 @@ void *send_handler(void *nodeListRaw) {
     return NULL;
 }
 
-void *receive_handler(void *nodeRaw) {
-    Node *node = (Node *) nodeRaw;
+void *receive_handler(void *recHandlerDataRaw) {
+    ReceiveHandlerData *recHandlerData = (ReceiveHandlerData *) recHandlerDataRaw;
+
+    printNodeList(recHandlerData->nodeList);
 
     while (true) {
         Message message;
 
-        if (receiveMessage(node->sock, &message)) {
-            debug("Successfully deserialized message!");
+        if (!recHandlerData->curNode->connected) {
+            // If no longer connected, remove the node and exit thread
+            debug("Removing node!");
+            removeNode(&recHandlerData->nodeList, recHandlerData->curNode);
+            break;
+        }
 
-            handleClient(message);
+        if (receiveMessage(recHandlerData->nodeList, recHandlerData->curNode, &message)) {
+            if (!handleClient(recHandlerData->nodeList, recHandlerData->curNode, message))
+                break;
         }
     }
+
+    free(recHandlerData);
 
     return NULL;
 }
@@ -115,36 +122,48 @@ void *initial_receive_handler(void *nodeRaw) {
     Node *node = (Node *) nodeRaw;
     struct sockaddr_in server_address;
 
-    // create unnamed network socket for server to listen on
+    // Create unnamed network socket for server to listen on
     if ((node->sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         perror("Error creating initial server socket");
         exit(EXIT_FAILURE);
     }
     
     // name the socket (making sure the correct network byte ordering is observed)
-    server_address.sin_family      = AF_INET;           // accept IP addresses
-    server_address.sin_addr.s_addr = htonl(INADDR_ANY); // accept clients on any interface
-    server_address.sin_port        = htons(node->port); // port to listen on
+    server_address.sin_family = AF_INET;
+    server_address.sin_addr.s_addr = htonl(INADDR_ANY);
+    // Automatically generate port if not the initial host
+    server_address.sin_port = node->initialNode ? htons(node->port) : 0;
     
-    // binding unnamed socket to a particular port
+    // Bind socket to a port
     if (bind(node->sock, (struct sockaddr *) &server_address, sizeof(server_address)) == -1) {
         perror("Error binding initial server socket");
         exit(EXIT_FAILURE);
     }
+
+    // Set port if needed
+    if (!node->initialNode) {
+        struct sockaddr_in clientAddr;
+        socklen_t clientAddrSize = sizeof(clientAddr);
+        getsockname(node->sock, (struct sockaddr *) &clientAddr, &clientAddrSize);
+        node->port = ntohs(clientAddr.sin_port);
+        debug("node->port: %d", node->port);
+    }
     
-    // listen for client connections (pending connections get put into a queue)
+    // Listen for client connections (pending connections get put into a queue)
     if (listen(node->sock, 1) == -1) {
         perror("Error listening on initial server socket");
         exit(EXIT_FAILURE);
     }
 
     while (true) {
-        Node *newNode = acceptNode(&node);
+        ReceiveHandlerData *recHandlerData = malloc(sizeof(ReceiveHandlerData));
+        recHandlerData->nodeList = node;
+        recHandlerData->curNode = acceptNode(&node);
 
         debug("Accepted client!\n");
 
         pthread_t receive_thread;
-        if (pthread_create(&receive_thread, NULL, receive_handler, (void *) newNode) == -1) {
+        if (pthread_create(&receive_thread, NULL, receive_handler, (void *) recHandlerData) == -1) {
             perror("Error: Could not create receiver thread");
             exit(EXIT_FAILURE);
         }
@@ -166,32 +185,41 @@ int main(int argc, char *argv[]) {
 
     puts("=== chat_node ===\n");
     
+    Node *nodeList;
     Node *node = loadProperties();
 
     debug("IP: %s", node->ip);
     debug("Port: %d", node->port);
     debug("Username: %s", node->username);
 
+    // Set the head of the node list to own server info
+    if (node->initialNode) {
+        nodeList = node;
+    }
+    else {
+        nodeList = createNode(NULL, 0, node->username, false, false);
+        nodeList->nextNode = node;
+        node->username = NULL;
+    }
+
     // Create sender thread
-    if (pthread_create(&senderThread, NULL, send_handler, (void *) node) < 0) {
+    if (pthread_create(&senderThread, NULL, send_handler, (void *) nodeList) < 0) {
         perror("Error: Could not create sender thread");
         result = EXIT_FAILURE;
         goto END;
     }
 
-    if (node->ip == NULL) {
-        // Create initial receiver thread
-        if (pthread_create(&initialReceiverThread, NULL, initial_receive_handler, (void *) node) < 0) {
-            perror("Error: Could not create initial receiver thread");
-            result = EXIT_FAILURE;
-            goto END;
-        }
+    // Create initial receiver thread
+    if (pthread_create(&initialReceiverThread, NULL, initial_receive_handler, (void *) nodeList) < 0) {
+        perror("Error: Could not create initial receiver thread");
+        result = EXIT_FAILURE;
+        goto END;
+    }
 
-        // Detach receiver thread
-        if (pthread_detach(initialReceiverThread)) {
-            fprintf(stderr, "Error: Could not join initial receiver thread!\n");
-            return EXIT_FAILURE;
-        }
+    // Detach receiver thread
+    if (pthread_detach(initialReceiverThread)) {
+        fprintf(stderr, "Error: Could not join initial receiver thread!\n");
+        return EXIT_FAILURE;
     }
 
     // Join sender thread
@@ -200,6 +228,8 @@ int main(int argc, char *argv[]) {
         result = EXIT_FAILURE;
         goto END;
     }
+
+    debug("Final exit.");
 
 END:
     return result;

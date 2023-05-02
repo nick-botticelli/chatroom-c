@@ -2,6 +2,8 @@
 
 #include <stdlib.h>
 
+#include "main.h"
+
 void debug_hexdump(void *data, size_t size) {
 #ifndef NDEBUG
 	char ascii[17];

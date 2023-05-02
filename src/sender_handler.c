@@ -1,6 +1,7 @@
 #include "sender_handler.h"
 
 #include <arpa/inet.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +9,7 @@
 #include <sys/socket.h>
 
 #include "debug.h"
+#include "main.h"
 #include "message.h"
 
 inline bool sendMessage(int sock, Message message) {
@@ -15,6 +17,7 @@ inline bool sendMessage(int sock, Message message) {
     size_t serializedMessageLen;
     uint8_t *serializedMessage = serializeMessage(message, &serializedMessageLen);
 
+    debug("Message send hexdump:");
     debug_hexdump(serializedMessage, serializedMessageLen);
 
     if (send(sock, serializedMessage, serializedMessageLen, 0) == -1) {
@@ -26,25 +29,24 @@ inline bool sendMessage(int sock, Message message) {
     return result;
 }
 
-inline bool isSocketConnected(int sock) {
-    int err = 0;
-    socklen_t len = sizeof(err);
-    int result = getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &len);
+inline void sendMessageAll(Node *nodeList, Node *nodeExclude, Message message) {
+    printNodeList(nodeList);
+    Node *curNode = nodeList;
+    while (curNode != NULL) {
+        // Do not send to nodes (including self) with null IPs
+        if (curNode->ip != NULL && curNode != nodeExclude)
+            sendMessage(curNode->sock, message);
 
-    if (result == -1) {
-        perror("Error: Could not check the socket status");
-        return false;
+        curNode = curNode->nextNode;
     }
-
-    printf("err: %d, %d\n", err, result);
-    
-    return err == 0;
 }
 
-inline void connectSocket(Node *node) {
+inline void connectSocket(Node *nodeList, Node *node) {
     struct sockaddr_in serv_addr;
 
     bzero((char *) &serv_addr, sizeof(serv_addr));
+
+    debug("connectSocket(): %s:%d", node->ip, node->port);
 
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(node->port);
@@ -54,12 +56,43 @@ inline void connectSocket(Node *node) {
         return;
     }
 
-    if (connect(node->sock, (struct sockaddr *) &serv_addr, sizeof (serv_addr)) == -1) {
-        perror("Error: Failed to connect to server");
+    if (connect(node->sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) == -1) {
+        // TODO: This is getting stuck here when first attempt to connect fails
+        // TODO: This is also failing with "Connection reset by peer" when 4th person connects;
+        //       this may be caused by the fact connectSocket is being double called with same port?
+        //       From Person2 perspective, Person3 isn't connected either.
+        perror("Error: Failed to connect to node");
         return;
     }
 
     node->connected = true;
+
+    pthread_t sr_receive_thread;
+    ReceiveHandlerData *recHandlerData = malloc(sizeof(ReceiveHandlerData));
+    recHandlerData->nodeList = nodeList;
+    recHandlerData->curNode = node;
+    if (pthread_create(&sr_receive_thread, NULL, receive_handler, (void *) recHandlerData) == -1) {
+        perror("Error: Could not create socket-reuse receiver thread");
+    }
+    
+    // Detach the thread so that we don't have to wait (join) with it to reclaim memory; memory
+    // will be reclaimed when the thread finishes.
+    if (pthread_detach(sr_receive_thread) == -1) {
+        perror("Error: Could not detach socket-reuse receiver thread");
+    }
+}
+
+inline bool connectToNode(Node *nodeList, Node *node, bool newJoin, Message *joinMessageOut) {
+    // Join the first Node in the NodeList
+    connectSocket(nodeList, node);
+
+    if (node->connected) {
+        debug("connectToNode(): new join: %d", newJoin);
+        *joinMessageOut = createJoinMessage(nodeList->username, nodeList->port, newJoin);
+        return true;
+    }
+    
+    return false;
 }
 
 inline bool handleCommand(Node *nodeList, char *input, CommandResult *cmdResultOut) {
@@ -71,20 +104,17 @@ inline bool handleCommand(Node *nodeList, char *input, CommandResult *cmdResultO
     if (strcasecmp(firstToken, "/JOIN") == 0) {
         debug("Handling join command\n");
 
-        if (nodeList->ip == NULL) {
+        if (nodeList->initialNode) {
             fprintf(stderr, "No server specified to join; you are currently the initial host!\n");
             return false;
         }
-        else if (nodeList->connected) {
+        else if (nodeList->nextNode->connected) {
             fprintf(stderr, "You are already connected to the chat room!\n");
             return false;
         }
         else {
-            // Join the first Node in the NodeList
-            connectSocket(nodeList);
-
-            if (nodeList->connected)
-                cmdResultOut->message = createJoinMessage(nodeList->username);
+            if (connectToNode(nodeList, nodeList->nextNode, true, &cmdResultOut->message))
+                printf("You successfully joined %s's chat room.\n", nodeList->nextNode->username);
             else
                 return false;
         }
@@ -93,6 +123,7 @@ inline bool handleCommand(Node *nodeList, char *input, CommandResult *cmdResultO
         debug("Handling leave command\n");
         cmdResultOut->message = createLeaveMessage(false);
         cmdResultOut->action = ACTION_LEAVE;
+        printf("You are now leaving the chat room.\n");
     }
     else if (strcasecmp(firstToken, "/SHUTDOWN") == 0) {
         char *secondToken = strtok(NULL, CMD_DELIMITER);
@@ -102,10 +133,12 @@ inline bool handleCommand(Node *nodeList, char *input, CommandResult *cmdResultO
         if (secondToken == NULL) {
             debug("Handling shutdown command\n");
             cmdResultOut->message = createLeaveMessage(false);
+            printf("You are now leaving the chat room and shutting down.\n");
         }
         else if (strcasecmp(secondToken, "ALL") == 0) {
             debug("Handling shutdown all command\n");
             cmdResultOut->message = createLeaveMessage(true);
+            printf("You are now shutting the chat room down.\n");
         }
         else {
             fprintf(stderr, "Unknown shutdown option \"%s\"!\n", secondToken);
@@ -127,8 +160,9 @@ inline bool handleCommand(Node *nodeList, char *input, CommandResult *cmdResultO
         return false;
     }
     else {
-        debug("Handling chat message \"%s\"\n", input);
-        cmdResultOut->message = createNoteMessage(input); 
+        debug("Handling chat message \"%s\"", input);
+        cmdResultOut->message = createNoteMessage(input);
+        printf("%s> %s\n", nodeList->username, input);
     }
 
     return true;

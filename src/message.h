@@ -25,8 +25,8 @@ typedef uint8_t MessageHeader;
 
 typedef enum {
     MSG_JOIN,
+    MSG_WELCOME,
     MSG_ADD_MEMBER,
-    MSG_MEMBER_LIST,
     MSG_NOTE,
     MSG_LEAVE
 } MessageType;
@@ -39,16 +39,18 @@ typedef struct {
         // Join
         struct {
             char *username;
+            short port;
+            // Flag 5 = boolean, whether client is joining new chat room (1) or adding existing members (0)
+        };
+
+        // Welcome
+        struct {
+            char *remoteUsername;
         };
 
         // Add member
         struct {
             Node *nodeInfo;
-        };
-
-        // Member list
-        struct {
-            Node *nodeList;
         };
 
         // Note
@@ -60,24 +62,27 @@ typedef struct {
         struct {
             // Flag 5 = boolean, whether to shutdown chat room (1) or not (0)
         };
-
-        // Shutdown all
-        // struct {
-        // };
     };
 } Message;
 
 
 
+/**
+ * @brief Get the bit value located at the bit number
+ * @param byteFlag 1-byte value to retrieve bit value from
+ * @param bitNum The bit number to retrieve starting from the right; 0-7
+ * @return bit value; true or false for 1 or 0 respectively
+ */
 extern inline bool getBit(uint8_t byteFlag, int bitNum);
+
 extern inline void setBit(uint8_t *byteFlag, int bitNum, bool bitValue);
 
 extern inline MessageType getMessageType(MessageHeader messageHeader);
 extern inline void setMessageType(MessageHeader *messageHeader, MessageType messageType);
 
-extern inline Message createJoinMessage(char *username);
+extern inline Message createJoinMessage(char *username, short port, bool newJoin);
+extern inline Message createWelcomeMessage(char *username);
 extern inline Message createAddMemberMessage(Node *nodeInfo);
-extern inline Message createMemberListMessage(Node *nodeList);
 extern inline Message createNoteMessage(char *note);
 extern inline Message createLeaveMessage(bool shutdownAll);
 
@@ -86,4 +91,5 @@ extern inline size_t getSerializedMessageSize(Message message);
 extern inline uint8_t *serializeNode(Node *node, size_t *rawNodeLenOut);
 extern inline uint8_t *serializeMessage(Message message, size_t *serializedMessageLenOut);
 
-extern inline void deserializeMessage(uint8_t *messageRaw, Message *messageOut);
+extern inline Node *deserializeNode(Node *nodeList, uint8_t *rawNode);
+extern inline Message deserializeMessage(Node *nodeList, uint8_t *rawMessage, size_t rawMessageSize);
