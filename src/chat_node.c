@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 #include "debug.h"
 #include "main.h"
@@ -66,6 +67,10 @@ inline void addNode(Node **nodeList, Node *node) {
     while (curNode->nextNode != NULL) {
         // Move to next node
         curNode = curNode->nextNode;
+
+        // If node is already in the node list, do nothing
+        if (curNode == node)
+            return;
     }
 
     debug("curNode: %p", curNode);
@@ -125,6 +130,10 @@ inline void removeNode(Node **nodeList, Node *node) {
     printf("%s has left the chat room.\n", curNode->username);
 
     // Clean up old node
+    curNode->connected = false;
+    free(curNode->ip);
+    free(curNode->username);
+    close(curNode->sock);
     free(curNode);
 
     printNodeList(*nodeList);

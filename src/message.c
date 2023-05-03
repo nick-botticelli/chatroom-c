@@ -228,6 +228,8 @@ inline Message deserializeMessage(Node *nodeList, uint8_t *rawMessage, size_t ra
             message.note = malloc(strlen((char *) rawMessage + 1)) + 1;
             strcpy(message.note, (char *) rawMessage + 1);
             break;
+        case MSG_LEAVE:
+            break;
         default:
             debug("Unknown message type recieved!");
             break;

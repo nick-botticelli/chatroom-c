@@ -87,6 +87,7 @@ inline bool connectToNode(Node *nodeList, Node *node, bool newJoin, Message *joi
     connectSocket(nodeList, node);
 
     if (node->connected) {
+        addNode(&nodeList, node);
         debug("connectToNode(): new join: %d", newJoin);
         *joinMessageOut = createJoinMessage(nodeList->username, nodeList->port, newJoin);
         return true;
@@ -114,7 +115,7 @@ inline bool handleCommand(Node *nodeList, char *input, CommandResult *cmdResultO
         }
         else {
             if (connectToNode(nodeList, nodeList->nextNode, true, &cmdResultOut->message))
-                printf("You successfully joined %s's chat room.\n", nodeList->nextNode->username);
+                printf("You successfully the chat room.\n");
             else
                 return false;
         }

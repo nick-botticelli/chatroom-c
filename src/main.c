@@ -82,8 +82,19 @@ void *send_handler(void *nodeListRaw) {
 
             debug("Command result action: %d", cmdResult.action);
 
-            if (cmdResult.action == ACTION_LEAVE || cmdResult.action == ACTION_SHUTDOWN)
+            if (cmdResult.action == ACTION_LEAVE) {
+                // Disconnect from all other nodes
+                Node *curNode = nodeList->initialNode ? nodeList->nextNode->nextNode : nodeList->nextNode;
+                while (curNode != NULL) {
+                    curNode->connected = false;
+                    close(curNode->sock);
+                    curNode = curNode->nextNode;
+                }
+                printNodeList(nodeList);
+            }
+            else if (cmdResult.action == ACTION_SHUTDOWN) {
                 break;
+            }
         }
     }
 
@@ -94,26 +105,43 @@ void *send_handler(void *nodeListRaw) {
 
 void *receive_handler(void *recHandlerDataRaw) {
     ReceiveHandlerData *recHandlerData = (ReceiveHandlerData *) recHandlerDataRaw;
+    Node *nodeList = recHandlerData->nodeList;
+    Node *node = recHandlerData->curNode;
 
     printNodeList(recHandlerData->nodeList);
 
     while (true) {
         Message message;
 
-        if (!recHandlerData->curNode->connected) {
+        if (!node->connected) {
+            debug("Node %p is not connected anymore!", node);
             // If no longer connected, remove the node and exit thread
-            debug("Removing node!");
-            removeNode(&recHandlerData->nodeList, recHandlerData->curNode);
+
+            // Don't remove head of node list
+            if (node != nodeList) {
+                // Don't remove 2nd node if self node is not an initial node
+                if (nodeList->initialNode || node != nodeList->nextNode) {
+                    debug("Removing node %p!", node);
+                    removeNode(&nodeList, node);
+                    break;
+                }
+            }
+
+            // For the node describing the original node to connect to, re-initialize the node for rejoining
+            node->sock = socket(AF_INET, SOCK_STREAM, 0);
+
             break;
         }
 
-        if (receiveMessage(recHandlerData->nodeList, recHandlerData->curNode, &message)) {
-            if (!handleClient(recHandlerData->nodeList, recHandlerData->curNode, message))
-                break;
+        if (receiveMessage(nodeList, node, &message)) {
+            if (!handleClient(nodeList, node, message)) {
+                exit(EXIT_SUCCESS); // Quick and dirty
+            }
         }
     }
 
     free(recHandlerData);
+    debug("Receive handler for node %p has shut down.", node);
 
     return NULL;
 }

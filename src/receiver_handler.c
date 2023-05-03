@@ -68,11 +68,15 @@ inline bool handleClient(Node *nodeList, Node *node, Message message) {
             break;
         case MSG_LEAVE:
             debug("Leave received!");
-            // removeNode(&nodeList, node); // TODO: Not needed?
+            
             if (getBit(message.header, 0)) {
-                printf("The chat room is shutting down. Goodbye.");
+                printf("The chat room is shutting down. Goodbye.\n");
                 return false;
             }
+
+            // Disconnect from node (mark for removal); this prevents any more messages from being received
+            node->connected = false;
+
             break;
     }
 
@@ -85,13 +89,15 @@ inline bool receiveMessage(Node *nodeList, Node *node, Message *messageOut) {
     ssize_t rawMessageSize = recv(node->sock, &rawMessage, sizeof(rawMessage), 0);
 
     if (rawMessageSize == -1) {
+        if (errno == EBADF) {
+            goto SOCKET_CLOSED;
+        }
+
         debug("Error reading message?");
         return false;
     }
     else if (rawMessageSize == 0) {
-        debug("Socket closed for node %p (%s)!", node, node->username);
-        node->connected = false;
-        return false;
+        goto SOCKET_CLOSED;
     }
 
     debug("received message!");
@@ -99,4 +105,9 @@ inline bool receiveMessage(Node *nodeList, Node *node, Message *messageOut) {
     // Create message from received data
     *messageOut = deserializeMessage(nodeList, rawMessage, rawMessageSize);
     return true;
+
+SOCKET_CLOSED:
+    debug("Socket closed for node %p (%s)!", node, node->username);
+    node->connected = false;
+    return false;
 }

@@ -20,6 +20,8 @@
  * 5: Flag 3
  * 6: Flag 4
  * 7: Flag 5
+ * 
+ * For use with getBit and setBit, the order is flipped!
  */
 typedef uint8_t MessageHeader;
 
