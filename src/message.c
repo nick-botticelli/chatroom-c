@@ -26,7 +26,7 @@ inline void setMessageType(MessageHeader *messageHeader, MessageType messageType
     *messageHeader = (*messageHeader & ~0xE0) | ((messageType << 5) & 0xE0);
 }
 
-inline Message createJoinMessage(char *username, short port, bool newJoin) {
+Message createJoinMessage(char *username, short port, bool newJoin) {
     debug("createJoinMessage() port: %d", port);
     Message message;
     message.header = BLANK_HEADER;
@@ -39,7 +39,7 @@ inline Message createJoinMessage(char *username, short port, bool newJoin) {
     return message;
 }
 
-inline Message createWelcomeMessage(char *remoteUsername) {
+Message createWelcomeMessage(char *remoteUsername) {
     Message message;
     message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_WELCOME);
@@ -48,7 +48,7 @@ inline Message createWelcomeMessage(char *remoteUsername) {
     return message;
 }
 
-inline Message createAddMemberMessage(Node *nodeInfo) {
+Message createAddMemberMessage(Node *nodeInfo) {
     Message message;
     message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_ADD_MEMBER);
@@ -57,7 +57,7 @@ inline Message createAddMemberMessage(Node *nodeInfo) {
     return message;
 }
 
-inline Message createNoteMessage(char *note) {
+Message createNoteMessage(char *note) {
     Message message;
     message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_NOTE);
@@ -66,7 +66,7 @@ inline Message createNoteMessage(char *note) {
     return message;
 }
 
-inline Message createLeaveMessage(bool shutdownAll) {
+Message createLeaveMessage(bool shutdownAll) {
     Message message;
     message.header = BLANK_HEADER;
     setMessageType(&message.header, MSG_LEAVE);
@@ -77,17 +77,17 @@ inline Message createLeaveMessage(bool shutdownAll) {
     return message;
 }
 
-inline size_t getNodeSize(Node *node) {
+size_t getNodeSize(Node *node) {
     size_t nodeSize = 0;
 
     nodeSize += strlen(node->ip) + 1;
-    nodeSize += sizeof(short); // TODO: short (port)?
+    nodeSize += sizeof(short);
     nodeSize += strlen(node->username) + 1;
 
     return nodeSize;
 }
 
-inline size_t getSerializedMessageSize(Message message) {
+size_t getSerializedMessageSize(Message message) {
     // Start at one byte for the header
     size_t serializedMsgLen = 1;
 
@@ -107,6 +107,7 @@ inline size_t getSerializedMessageSize(Message message) {
             serializedMsgLen += strlen(message.note) + 1;
             break;
         default:
+            debug("Error: Invalid message type in getSerializedMessageSize()!");
             break;
     }
 
@@ -115,20 +116,20 @@ inline size_t getSerializedMessageSize(Message message) {
     return serializedMsgLen;
 }
 
-inline uint8_t *serializeNode(Node *node, size_t *rawNodeLenOut) {
+uint8_t *serializeNode(Node *node, size_t *rawNodeLenOut) {
     *rawNodeLenOut = getNodeSize(node);
     uint8_t *serializedNode = malloc(*rawNodeLenOut);
     size_t curIndex = 0;
 
     curIndex += strlen(strcpy((char *) serializedNode, node->ip)) + 1; // Copy IP
-    memcpy(serializedNode + curIndex, &node->port, sizeof(node->port)); // Copy port; TODO: Simply
-    curIndex += sizeof(short); // TODO: Use short type?
+    memcpy(serializedNode + curIndex, &node->port, sizeof(node->port)); // Copy port
+    curIndex += sizeof(short);
     curIndex += strlen(strcpy((char *) serializedNode + curIndex, node->username)) + 1; // Copy username
 
     return serializedNode;
 }
 
-inline uint8_t *serializeMessage(Message message, size_t *rawMsgLenOut) {
+uint8_t *serializeMessage(Message message, size_t *rawMsgLenOut) {
     uint8_t *rawMsg;
     size_t rawMsgIndex;
     *rawMsgLenOut = getSerializedMessageSize(message);
@@ -163,13 +164,14 @@ inline uint8_t *serializeMessage(Message message, size_t *rawMsgLenOut) {
             strcpy((char *) rawMsg + rawMsgIndex, message.note);
             break;
         default:
+//            debug("Error: Invalid message type in serializeMessage()!");
             break;
     }
 
     return rawMsg;
 }
 
-inline Node *deserializeNode(Node *nodeList, uint8_t *rawNode) {
+Node *deserializeNode(Node *nodeList, uint8_t *rawNode) {
     size_t rawNodeIndex = 0;
 
     // Parse IP
@@ -189,12 +191,11 @@ inline Node *deserializeNode(Node *nodeList, uint8_t *rawNode) {
     strcpy(username, (char *) rawNode + rawNodeIndex);
 
     Node *node = createNode(ip, port, username, true, false);
-    // connectSocket(nodeList, node); // TODO: ?
 
     return node;
 }
 
-inline Message deserializeMessage(Node *nodeList, uint8_t *rawMessage, size_t rawMessageSize) {
+Message deserializeMessage(Node *nodeList, uint8_t *rawMessage, size_t rawMessageSize) {
     Message message;
 
     debug("Received message hexdump:");

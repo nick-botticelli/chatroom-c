@@ -16,38 +16,8 @@
 #include "receiver_handler.h"
 #include "sender_handler.h"
 
-// TODO: Move this to debug.c
-extern inline void debugMessage(Message message) {
-#ifndef NDEBUG
-    MessageType messageType = getMessageType(message.header);
 
-    printf("Message {\n");
-    printf("\theader:\n");
-    printf("\t\ttype = %d\n", messageType);
-
-    switch (messageType) {
-        case MSG_JOIN:
-            printf("\tusername = %s\n", message.username);
-            printf("\tport = %d\n", message.port);
-            break;
-        case MSG_WELCOME:
-            printf("\tremoteUsername = %s\n", message.remoteUsername);
-        case MSG_ADD_MEMBER:
-            printf("\tWIP\n");
-            break;
-        case MSG_NOTE:
-            printf("\tnote = %s\n", message.note);
-            break;
-        case MSG_LEAVE:
-            printf("\tshutdownAll = %s\n", getBit(message.header, 0) ? "true" : "false");
-            break;
-    }
-
-    printf("}\n");
-#endif
-}
-
-inline Node *loadProperties() {
+Node *loadProperties() {
     Properties *properties = property_read_properties(CONFIG_PATH);
 
     char *ip = property_get_property(properties, "ip");
@@ -84,6 +54,7 @@ void *send_handler(void *nodeListRaw) {
 
             if (cmdResult.action == ACTION_LEAVE) {
                 // Disconnect from all other nodes
+                debug("Disconnecting from all other nodes...");
                 Node *curNode = nodeList->initialNode ? nodeList->nextNode->nextNode : nodeList->nextNode;
                 while (curNode != NULL) {
                     curNode->connected = false;
@@ -134,8 +105,14 @@ void *receive_handler(void *recHandlerDataRaw) {
         }
 
         if (receiveMessage(nodeList, node, &message)) {
-            if (!handleClient(nodeList, node, message)) {
-                exit(EXIT_SUCCESS); // Quick and dirty
+            bool clientStatus = handleClient(nodeList, node, message);
+
+//            // Loop through disconnected nodes and remove from list
+
+            if (!clientStatus) {
+                debug("Shutting down client.");
+                exit(EXIT_SUCCESS); // TODO: Quick and dirty
+//                break;
             }
         }
     }
@@ -152,7 +129,7 @@ void *initial_receive_handler(void *nodeRaw) {
 
     // Create unnamed network socket for server to listen on
     if ((node->sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        perror("Error creating initial server socket");
+        perror("Error creating initial server socket!");
         exit(EXIT_FAILURE);
     }
     
@@ -164,7 +141,7 @@ void *initial_receive_handler(void *nodeRaw) {
     
     // Bind socket to a port
     if (bind(node->sock, (struct sockaddr *) &server_address, sizeof(server_address)) == -1) {
-        perror("Error binding initial server socket");
+        perror("Error binding initial server socket!");
         exit(EXIT_FAILURE);
     }
 
@@ -179,7 +156,7 @@ void *initial_receive_handler(void *nodeRaw) {
     
     // Listen for client connections (pending connections get put into a queue)
     if (listen(node->sock, 1) == -1) {
-        perror("Error listening on initial server socket");
+        perror("Error listening on initial server socket!");
         exit(EXIT_FAILURE);
     }
 
@@ -192,14 +169,18 @@ void *initial_receive_handler(void *nodeRaw) {
 
         pthread_t receive_thread;
         if (pthread_create(&receive_thread, NULL, receive_handler, (void *) recHandlerData) == -1) {
-            perror("Error: Could not create receiver thread");
+            perror("Error: Could not create receiver thread!");
             exit(EXIT_FAILURE);
         }
         
-        // detach the thread so that we don't have to wait (join) with it to reclaim memory.
+        // Detach the thread so that we don't have to wait (join) with it to reclaim memory.
         // memory will be reclaimed when the thread finishes.
-        if (pthread_detach(receive_thread) == -1) {
-            perror("Error: Could not detach receiver thread");
+        int pthreadDetachCode = pthread_detach(receive_thread);
+
+//        free(recHandlerData); // TODO: Verify?
+
+        if (pthreadDetachCode == -1) {
+            perror("Error: Could not detach receiver thread!");
             exit(EXIT_FAILURE);
         }
     }
@@ -211,7 +192,7 @@ int main(int argc, char *argv[]) {
     int result = EXIT_SUCCESS;
     pthread_t senderThread, initialReceiverThread;
 
-    puts("=== chat_node ===\n");
+    puts("=== chatroom-c ===\n");
     
     Node *nodeList;
     Node *node = loadProperties();

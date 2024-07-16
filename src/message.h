@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <chat_node.h>
+#include "chat_node.h"
 
 #define BLANK_HEADER (MessageHeader) 0
 
@@ -82,16 +82,16 @@ extern inline void setBit(uint8_t *byteFlag, int bitNum, bool bitValue);
 extern inline MessageType getMessageType(MessageHeader messageHeader);
 extern inline void setMessageType(MessageHeader *messageHeader, MessageType messageType);
 
-extern inline Message createJoinMessage(char *username, short port, bool newJoin);
-extern inline Message createWelcomeMessage(char *username);
-extern inline Message createAddMemberMessage(Node *nodeInfo);
-extern inline Message createNoteMessage(char *note);
-extern inline Message createLeaveMessage(bool shutdownAll);
+extern Message createJoinMessage(char *username, short port, bool newJoin);
+extern Message createWelcomeMessage(char *username);
+extern Message createAddMemberMessage(Node *nodeInfo);
+extern Message createNoteMessage(char *note);
+extern Message createLeaveMessage(bool shutdownAll);
 
-extern inline size_t getNodeSize(Node *node);
-extern inline size_t getSerializedMessageSize(Message message);
-extern inline uint8_t *serializeNode(Node *node, size_t *rawNodeLenOut);
-extern inline uint8_t *serializeMessage(Message message, size_t *serializedMessageLenOut);
+extern size_t getNodeSize(Node *node);
+extern size_t getSerializedMessageSize(Message message);
+extern uint8_t *serializeNode(Node *node, size_t *rawNodeLenOut);
+extern uint8_t *serializeMessage(Message message, size_t *serializedMessageLenOut);
 
-extern inline Node *deserializeNode(Node *nodeList, uint8_t *rawNode);
-extern inline Message deserializeMessage(Node *nodeList, uint8_t *rawMessage, size_t rawMessageSize);
+extern Node *deserializeNode(Node *nodeList, uint8_t *rawNode);
+extern Message deserializeMessage(Node *nodeList, uint8_t *rawMessage, size_t rawMessageSize);

@@ -12,7 +12,7 @@
 #include "main.h"
 #include "message.h"
 
-inline bool sendMessage(int sock, Message message) {
+bool sendMessage(int sock, Message message) {
     bool result = true;
     size_t serializedMessageLen;
     uint8_t *serializedMessage = serializeMessage(message, &serializedMessageLen);
@@ -29,7 +29,8 @@ inline bool sendMessage(int sock, Message message) {
     return result;
 }
 
-inline void sendMessageAll(Node *nodeList, Node *nodeExclude, Message message) {
+void sendMessageAll(Node *nodeList, Node *nodeExclude, Message message) {
+    debug("sendMessageAll()...");
     printNodeList(nodeList);
     Node *curNode = nodeList;
     while (curNode != NULL) {
@@ -41,7 +42,7 @@ inline void sendMessageAll(Node *nodeList, Node *nodeExclude, Message message) {
     }
 }
 
-inline void connectSocket(Node *nodeList, Node *node) {
+void connectSocket(Node *nodeList, Node *node) {
     struct sockaddr_in serv_addr;
 
     bzero((char *) &serv_addr, sizeof(serv_addr));
@@ -82,7 +83,7 @@ inline void connectSocket(Node *nodeList, Node *node) {
     }
 }
 
-inline bool connectToNode(Node *nodeList, Node *node, bool newJoin, Message *joinMessageOut) {
+bool connectToNode(Node *nodeList, Node *node, bool newJoin, Message *joinMessageOut) {
     // Join the first Node in the NodeList
     connectSocket(nodeList, node);
 
@@ -92,11 +93,13 @@ inline bool connectToNode(Node *nodeList, Node *node, bool newJoin, Message *joi
         *joinMessageOut = createJoinMessage(nodeList->username, nodeList->port, newJoin);
         return true;
     }
-    
+
+    debug("Error: Node is not connected!");
+
     return false;
 }
 
-inline bool handleCommand(Node *nodeList, char *input, CommandResult *cmdResultOut) {
+bool handleCommand(Node *nodeList, char *input, CommandResult *cmdResultOut) {
     cmdResultOut->action = ACTION_NOTHING;
 
     char *tokenizedInput = strdup(input);
@@ -115,7 +118,7 @@ inline bool handleCommand(Node *nodeList, char *input, CommandResult *cmdResultO
         }
         else {
             if (connectToNode(nodeList, nodeList->nextNode, true, &cmdResultOut->message))
-                printf("You successfully the chat room.\n");
+                printf("You successfully joined the chat room.\n");
             else
                 return false;
         }

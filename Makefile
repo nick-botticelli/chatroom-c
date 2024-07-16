@@ -1,5 +1,5 @@
 # Many thanks to Job Vranish - see https://spin.atomicobject.com/2016/08/26/makefile-c-projects/
-TARGET_EXEC := chat_node
+TARGET_EXEC := chatroom-c
 BUILD_DIR := ./build
 SRC_DIRS  := ./src
 SRCS := $(shell find $(SRC_DIRS) -name *.cpp -or -name *.c -or -name *.s)
@@ -10,10 +10,7 @@ INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 CPPFLAGS := $(INC_FLAGS) -MMD -MP -Wall -Wno-unused-command-line-argument -Wno-undefined-inline
 LDFLAGS  := -pthread -lpthread
 
-RELEASE_FLAGS := -Ofast -DNDEBUG -fvisibility=hidden -fstack-protector-strong \
--fomit-frame-pointer -fPIE -fstack-clash-protection -fsanitize=bounds \
--fsanitize-undefined-trap-on-error -D_FORTIFY_SOURCE=3 -flto
-# RELEASE_LDFLAGS := -Wl,-z,relro,-z,now,-z,noexecstack,-z,separate-code
+RELEASE_FLAGS := -O3 -DNDEBUG -fvisibility=hidden -fomit-frame-pointer
 
 DEBUG_FLAGS := -O0 -g3 -fno-omit-frame-pointer -fno-common -fno-optimize-sibling-calls
 ASAN_FLAGS := $(DEBUG_FLAGS) -fsanitize=address,undefined
@@ -23,7 +20,6 @@ TSAN_FLAGS := $(DEBUG_FLAGS) -fsanitize=thread
 .PHONY: all debug asan msan tsan clean
 
 all: CPPFLAGS += $(RELEASE_FLAGS)
-# all: LDFLAGS += $(RELEASE_LDFLAGS)
 all: $(BUILD_DIR)/$(TARGET_EXEC)
 	strip $(BUILD_DIR)/$(TARGET_EXEC)
 

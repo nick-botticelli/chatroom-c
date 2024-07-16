@@ -5,23 +5,12 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <unistd.h> // TODO: Remove
 
 #include "debug.h"
+#include "chat_node.h"
 #include "sender_handler.h"
 
-inline void removePrompt() {
-    printf("\b\b");
-}
-
-inline void repositionCursor() {
-    // Remove the two command prompt characters ('> '),
-    // then move input cursor down,
-    // then print command prompt characters
-    printf("%s" CMD_PROMPT, ANSI_MOVE_CURSOR_DOWN);
-}
-
-inline bool handleClient(Node *nodeList, Node *node, Message message) {
+bool handleClient(Node *nodeList, Node *node, Message message) {
     MessageType messageType = getMessageType(message.header);
 
     switch (messageType) {
@@ -53,13 +42,16 @@ inline bool handleClient(Node *nodeList, Node *node, Message message) {
             node->username = message.remoteUsername;
             printNodeList(nodeList);
 
+            printf("%s has joined the chat room.\n", node->username);
+
             break;
         case MSG_ADD_MEMBER:
             debug("Add member received!");
 
             Message joinMessage;
-            if (connectToNode(nodeList, message.nodeInfo, false, &joinMessage))
+            if (connectToNode(nodeList, message.nodeInfo, false, &joinMessage)) {
                 sendMessage(message.nodeInfo->sock, joinMessage);
+            }
 
             break;
         case MSG_NOTE:
@@ -77,19 +69,24 @@ inline bool handleClient(Node *nodeList, Node *node, Message message) {
             // Disconnect from node (mark for removal); this prevents any more messages from being received
             node->connected = false;
 
+            printf("%s has left the chat room.\n", node->username);
+
             break;
+        default:
+            debug("Error: Invalid message type received (%d)!", messageType);
     }
 
-    // repositionCursor();
     return true;
 }
 
-inline bool receiveMessage(Node *nodeList, Node *node, Message *messageOut) {
+bool receiveMessage(Node *nodeList, Node *node, Message *messageOut) {
     uint8_t rawMessage[MAX_PAYLOAD_SIZE + 1];
     ssize_t rawMessageSize = recv(node->sock, &rawMessage, sizeof(rawMessage), 0);
 
     if (rawMessageSize == -1) {
+        debug("rawMessageSize == -1");
         if (errno == EBADF) {
+            debug("Error: errno == EBADF");
             goto SOCKET_CLOSED;
         }
 
@@ -97,10 +94,11 @@ inline bool receiveMessage(Node *nodeList, Node *node, Message *messageOut) {
         return false;
     }
     else if (rawMessageSize == 0) {
+        debug("rawMessageSize == 0");
         goto SOCKET_CLOSED;
     }
 
-    debug("received message!");
+    debug("Received message!");
 
     // Create message from received data
     *messageOut = deserializeMessage(nodeList, rawMessage, rawMessageSize);

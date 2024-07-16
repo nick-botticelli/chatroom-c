@@ -9,21 +9,7 @@
 #include "debug.h"
 #include "main.h"
 
-inline void printNodeList(Node *nodeList) {
-#ifndef NDEBUG
-    Node *curNode = nodeList;
-
-    // Traverse linked list until we find the node to remove
-    printf("===== Node list =====\n");
-    while (curNode != NULL) {
-        printf("%p: %s:%d - %s -\t-> %p\n", curNode, curNode->ip, curNode->port, curNode->username, curNode->nextNode);
-        curNode = curNode->nextNode;
-    }
-    printf("=====================\n");
-#endif
-}
-
-inline Node *createNode(char *ip, short port, char *username, bool createSocket, bool initialNode) {
+Node *createNode(char *ip, short port, char *username, bool createSocket, bool initialNode) {
     Node *node = malloc(sizeof(Node));
     node->ip = ip;
     node->port = port;
@@ -36,7 +22,7 @@ inline Node *createNode(char *ip, short port, char *username, bool createSocket,
     return node;
 }
 
-inline Node *acceptNode(Node **nodeList) {
+Node *acceptNode(Node **nodeList) {
     struct sockaddr addr;
     socklen_t addrlen = sizeof(addr);
     int sock = accept((*nodeList)->sock, &addr, &addrlen);
@@ -56,7 +42,7 @@ inline Node *acceptNode(Node **nodeList) {
     return node;
 }
 
-inline void addNode(Node **nodeList, Node *node) {
+void addNode(Node **nodeList, Node *node) {
     if (*nodeList == NULL) { // TODO
         *nodeList = node;
         // node->nextNode = NULL;
@@ -81,7 +67,7 @@ inline void addNode(Node **nodeList, Node *node) {
     printNodeList(*nodeList);
 }
 
-inline void removeNode(Node **nodeList, Node *node) {
+void removeNode(Node **nodeList, Node *node) {
     Node *prevNode = NULL;
     Node *curNode = *nodeList;
 
@@ -112,22 +98,9 @@ inline void removeNode(Node **nodeList, Node *node) {
         // nodeList->node = node;
         *nodeList = node;
 
-        // if (curNode == *nodeList) {
-        //     // Linked list is empty
-        //     (*nodeList)->nextNode = NULL;
-        //     debug("Removing only node in the node list!");
-        // }
-        // else {
-        //     // First item is the node to remove (curNode)
-        //     (*nodeList)->nextNode = curNode->nextNode;
-        //     debug("Removing first node in node list!");
-        // }
-
         debug("Removing the head in node list!");
         *nodeList = curNode->nextNode;
     }
-
-    printf("%s has left the chat room.\n", curNode->username);
 
     // Clean up old node
     curNode->connected = false;

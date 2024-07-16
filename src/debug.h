@@ -11,6 +11,9 @@
 #include <errno.h>
 #include <string.h>
 
+#include "chat_node.h"
+#include "message.h"
+
 #ifndef NDEBUG
 // debug() - maskable debug message, expanded only if symbol DEBUG is defined
 #define debug(M, ...) fprintf(stderr, "[DEBUG] %s:%d: " M "\n", __FILE__, __LINE__, ##__VA_ARGS__)
@@ -34,3 +37,7 @@
 
 
 void debug_hexdump(void *data, size_t size);
+
+void printNodeList(Node *nodeList);
+
+void debugMessage(Message message);

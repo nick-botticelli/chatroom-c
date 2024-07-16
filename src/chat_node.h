@@ -36,9 +36,9 @@ typedef struct {
  * @param createSocket whether to create a new socket immediately or leave null
  * @param initialNode whether the created node is the initial host node
  */
-extern inline Node *createNode(char *ip, short port, char *username, bool createSocket, bool initialNode);
+extern Node *createNode(char *ip, short port, char *username, bool createSocket, bool initialNode);
 
-extern inline void printNodeList(Node *nodeList);
-extern inline Node *acceptNode(Node **nodeList);
-extern inline void addNode(Node **nodeList, Node *node);
-extern inline void removeNode(Node **nodeList, Node *node);
+extern void printNodeList(Node *nodeList);
+extern Node *acceptNode(Node **nodeList);
+extern void addNode(Node **nodeList, Node *node);
+extern void removeNode(Node **nodeList, Node *node);
